@@ -1,0 +1,11 @@
+{
+  "name": "23-catalogue-deny-no-purpose",
+  "query": "facis/catalogue/allow",
+  "input": {
+    "roles": [
+      "data_analyst"
+    ],
+    "layer": "gold"
+  },
+  "expect": "deny"
+}

@@ -1,0 +1,28 @@
+{
+  "name": "33-negotiation-permit-allow",
+  "query": "facis/negotiation/permit",
+  "input": {
+    "subject": {
+      "did": "did:web:org-x.facis.cloud",
+      "roles": [
+        "data_consumer"
+      ]
+    },
+    "action": "negotiation.permit",
+    "resource": {
+      "negotiationId": "neg-1",
+      "offerId": "offer-allowed-1",
+      "dataset": "dataset-1"
+    },
+    "context": {
+      "purpose": "analytics",
+      "constraints": [
+        {
+          "type": "purpose",
+          "value": "analytics"
+        }
+      ]
+    }
+  },
+  "expect": "allow"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "30-negotiation-allow",
+  "query": "facis/negotiation/allow",
+  "input": {
+    "org_did": "did:web:org-x.facis.cloud",
+    "roles": [
+      "data_consumer"
+    ],
+    "offer_purpose": "analytics",
+    "offer_id": "offer-allowed-1",
+    "dataset": "dataset-1"
+  },
+  "expect": "allow"
+}

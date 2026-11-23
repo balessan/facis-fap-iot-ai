@@ -1,0 +1,15 @@
+{
+  "name": "40-transfer-allow",
+  "query": "facis/transfer/allow",
+  "input": {
+    "format": "http-pull",
+    "roles": [
+      "data_analyst"
+    ],
+    "agreement_state": "FINALIZED",
+    "purpose": [
+      "analytics"
+    ]
+  },
+  "expect": "allow"
+}

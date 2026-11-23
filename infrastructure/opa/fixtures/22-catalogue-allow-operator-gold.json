@@ -1,0 +1,14 @@
+{
+  "name": "22-catalogue-allow-operator-gold",
+  "query": "facis/catalogue/allow",
+  "input": {
+    "roles": [
+      "operator"
+    ],
+    "layer": "gold",
+    "purpose": [
+      "operations"
+    ]
+  },
+  "expect": "allow"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "51-ai-insight-deny",
+  "query": "facis/ai_insight/allow",
+  "input": {
+    "roles": [
+      "data_scientist"
+    ],
+    "purpose": [
+      "analytics"
+    ]
+  },
+  "expect": "deny"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "53-ai-insight-deny-engineer",
+  "query": "facis/ai_insight/allow",
+  "input": {
+    "roles": [
+      "data_engineer"
+    ],
+    "purpose": [
+      "ai_insight"
+    ]
+  },
+  "expect": "deny"
+}

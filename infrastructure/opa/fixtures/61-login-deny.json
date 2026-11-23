@@ -1,0 +1,9 @@
+{
+  "name": "61-login-deny",
+  "query": "facis/login/allow",
+  "input": {
+    "roles": [],
+    "org_did": "did:web:org-x.facis.cloud"
+  },
+  "expect": "deny"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "73-lakehouse-gold-operator-other-table-deny",
+  "query": "facis/lakehouse/read",
+  "input": {
+    "roles": [
+      "operator"
+    ],
+    "layer": "gold",
+    "table": "consumer_insights",
+    "columns": [
+      "c"
+    ]
+  },
+  "expect": "deny"
+}

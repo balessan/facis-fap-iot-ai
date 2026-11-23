@@ -1,0 +1,13 @@
+{
+  "name": "41-transfer-deny",
+  "query": "facis/transfer/allow",
+  "input": {
+    "format": "http-pull",
+    "roles": [],
+    "agreement_state": "REQUESTED",
+    "purpose": [
+      "analytics"
+    ]
+  },
+  "expect": "deny"
+}
