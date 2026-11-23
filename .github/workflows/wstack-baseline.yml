@@ -29,16 +29,20 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Unit tests of the checks
+      - name: Install dependencies
+        run: pip install -r infrastructure/wstack/requirements.txt
+
+      - name: Unit tests of the checks and scripts
         run: python3 -m unittest discover -s infrastructure/wstack/tests -v
 
       - name: Check the lock file
         run: python3 infrastructure/wstack/check-baseline.py
 
   registry-drift:
-    # Weekly and on demand: reports tags on the XFSC registry that no longer
-    # point to the pinned digest. A warning, not a failure: the digest is what
-    # gets deployed.
+    # Weekly and on demand: fails when a tag on the XFSC registry no longer
+    # points to the pinned digest, so the failed run notifies. The pinned
+    # digests still resolve; the failure means the lock is out of date with
+    # the tags, and someone should decide whether to regenerate it.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -50,4 +54,4 @@ jobs:
           python-version: "3.11"
 
       - name: Re-resolve the pinned tags
-        run: python3 infrastructure/wstack/check-baseline.py --registry
+        run: python3 infrastructure/wstack/check-baseline.py --registry --strict

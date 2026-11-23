@@ -1,4 +1,4 @@
-# deployment @ 55e28aa (ref main), generated 2026-10-30T20:43:12Z
+# deployment @ 55e28aa6a314ad11a1700cb382fdd2a14bc4259f (ref 55e28aa), generated 2026-11-23T13:55:59Z
 kind	source	digest	used_by
 chart	node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/common-services/sd-jwt-service:1.2.9-helm	sha256:2df9818abcd71778fbffc33a65259942a75cd2210bd7788c0abd5dd8d0530125	OCM W-Stack/SdJwt Service
 chart	node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/ocm-wstack/credential-offering-bootstrap:0.1.0	sha256:4206c93cd6df89e8e5bc51de788abaa833bbcd80d834dc4bc4c0bbd5ef8893f0	OCM W-Stack/Offering Dummy
