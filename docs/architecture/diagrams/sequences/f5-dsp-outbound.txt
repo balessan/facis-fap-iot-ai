@@ -1,0 +1,17 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F5 DSP outbound presentation
+autonumber 1
+participant "DSP connector\n(consumer flow)" as DSP
+participant "iam.issue\n(DSP connector)" as ISS
+participant "Connector tenant\n(storage)" as STO
+participant "Crypto provider\n(connector key in OpenBao)" as CRY
+participant "Counterparty\nprovider" as P
+DSP->ISS:presentation needed for this provider
+ISS->STO:DCQL query for the participant credential
+STO-->ISS:credential (jwt_vc_json)
+ISS->CRY:sign a presentation (audience = provider, nonce, 5 min expiry)
+CRY-->ISS:signed VP-JWT
+ISS-->DSP:Bearer token
+DSP->P:DSP request with the Bearer VP-JWT
+note over ISS,CRY:No private key in the connector: the crypto provider signs with the connector key

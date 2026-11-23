@@ -1,0 +1,23 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F6 Revocation
+autonumber 1
+participant "Operator" as ADM
+participant "FAP admin flow" as AF
+participant "Status list" as SL
+participant "Counterparty\nconnector" as CP
+participant "iam.verify\n(DSP connector)" as VER
+participant "User with a wallet" as U
+participant "Guard\n(login provider)" as G
+participant "W-Stack verifier" as CVS
+ADM->AF:revoke a credential (participant, person or service)
+AF->SL:revoke the status entry
+SL-->AF:revoked
+CP->VER:next DSP request with a VP
+VER->SL:status list (cached at most 5 min)
+VER-->CP:401, credential revoked
+note over U,G:Wallet-login tokens live 5 min, with no offline refresh
+U->G:next login, presenting the revoked credential
+G->CVS:read the result
+CVS-->G:status revoked
+G-->U:login refused

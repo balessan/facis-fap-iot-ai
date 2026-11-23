@@ -34,9 +34,9 @@ flowchart LR
       az["Authorization server<br/>(Ory Hydra, on Fosite)"]
       lp["Login and consent provider<br/>(login page with QR code)"]
     end
-    pol["Policy engine<br/>(Rego bundle)"]
     dsp["DSP connector<br/>(ORCE)"]
   end
+  pol["Policy engine<br/>(Rego bundle)"]
   subgraph ws["OCM W-Stack"]
     cvs["Verifier<br/>(OID4VP, DCQL)"]
     ten["Connector tenant<br/>(storage, crypto provider)"]
@@ -57,7 +57,13 @@ flowchart LR
 
 The guard replaces the identity provider role for the web applications: it issues their tokens
 after a verified presentation. The OCM W-Stack verifies presentations; it does not issue
-application tokens.
+application tokens. Where the policy engine runs, in the FAP deployment or as a shared policy
+service, is open.
+
+The detailed picture, with the zones and trust boundaries, and the sequence of every flow (deployment,
+credential issuance, wallet login, DSP checks, revocation, data access, machine identity) are in
+[Identity and access: overview and flows](icam-flows.md). Their editable sources, for draw.io and
+sequencediagram.org, are in [`diagrams/`](diagrams/README.md).
 
 ## 3. Components
 
@@ -120,6 +126,24 @@ Login rules:
   administrator can list and lift lockouts, and both actions are audited.
 - Tokens from a wallet login live 5 minutes, with no offline refresh, so a revoked credential stops
   working at the next login.
+
+### The guard in a FAP deployment
+
+- **What is deployed:** the authorization server (Ory Hydra) with its own PostgreSQL database, and
+  the login and consent provider. Both run in the FAP deployment, next to the web applications.
+- **Clients:** each web application (AI Insight UI, dashboard, NiFi) is registered as an OAuth2
+  client: authorization code with PKCE, fixed redirect URIs. Consent is skipped for these
+  first-party clients; the login policy is the gate.
+- **Tokens:** access tokens are signed JWTs, so APIs check them against the guard's JWKS without a
+  call per request. The login provider puts the verified claims (§5) into the access and ID tokens
+  when it accepts the login and the consent.
+- **Exposure:** only the public OAuth2 and OpenID Connect endpoints and the login page are reachable
+  from outside. The authorization server's admin API is reachable only by the login provider.
+- **Configuration of the login provider:** the trusted issuers and the organisations each one may
+  vouch for, the roles allowed per application, and the web wallets the login page may redirect to.
+- **Logout** ends the guard session. Tokens already issued expire within 5 minutes.
+- **Keycloak** is no longer on the login path of the web applications. The Easy Stack Builder nodes
+  still use their own Keycloak for the W-Stack and PCM Cloud.
 
 ## 5. Tokens and claims
 

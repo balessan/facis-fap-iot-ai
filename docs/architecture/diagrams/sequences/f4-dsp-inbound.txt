@@ -1,0 +1,23 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F4 DSP inbound check
+autonumber 1
+participant "Counterparty\nconnector" as CP
+participant "iam.verify\n(DSP connector)" as VER
+participant "did:web\nresolution" as DID
+participant "W-Stack\ncrypto provider" as CRY
+participant "Status list" as SL
+participant "Policy engine" as POL
+participant "Negotiation state\n(Postgres)" as DB
+CP->VER:DSP request with a Bearer VP-JWT
+VER->VER:audience, expiry, nonce, jti not replayed
+VER->DID:resolve the holder and issuer DIDs
+VER->CRY:verify the presentation and the credential
+CRY-->VER:signature and holder binding valid
+VER->SL:status list (cached at most 5 min)
+VER->VER:issuer on the trusted-issuer list
+VER->POL:participant and negotiation policies
+POL-->VER:allow, or deny with a reason
+VER->DB:decision record
+VER-->CP:agreement, or 401, 403 or TERMINATED with a reason
+note over CP,DB:Fail closed: a failed or unreachable check gives 401, and the decision is logged
