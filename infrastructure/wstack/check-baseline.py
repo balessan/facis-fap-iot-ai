@@ -26,7 +26,9 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 KINDS = {"image", "chart"}
 
 # Images the FAP depends on (path without registry host) and minimum version.
-# The verifier supports DCQL from 1.3.0.
+# The verifier minimum is the release line the FAP's presentation flows were
+# tested with (1.3.x: DCQL queries from the tenant's presentation profiles and
+# the /wallet/authorize endpoint). It moves with the baseline commit.
 REQUIRED_IMAGES: dict[str, str | None] = {
     "ocm-wstack/issuance-service": None,
     "ocm-wstack/pre-authorization-bridge": None,
@@ -116,8 +118,13 @@ def parse_lock(text: str, report: Report) -> Lock | None:
 
 
 def version_tuple(tag: str) -> tuple[int, ...] | None:
-    m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", tag)
-    return tuple(int(x) for x in m.groups()) if m else None
+    """(major, minor, patch, release): a pre-release such as 1.3.0-alpha sorts
+    before 1.3.0, so it does not meet a 1.3.0 minimum."""
+    m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?", tag)
+    if not m:
+        return None
+    major, minor, patch = (int(x) for x in m.groups()[:3])
+    return (major, minor, patch, 0 if m[4] else 1)
 
 
 def check_offline(lock: Lock, report: Report, expect_deployment: str | None = None) -> None:
@@ -144,14 +151,20 @@ def check_offline(lock: Lock, report: Report, expect_deployment: str | None = No
         if key in seen:
             report.fail(f"line {e.line}: duplicate of line {seen[key]} ({e.kind} {e.source})")
         seen[key] = e.line
-    images = {e.path: e for e in lock.entries if e.kind == "image"}
+    images: dict[str, list[Entry]] = {}
+    for e in lock.entries:
+        if e.kind == "image":
+            images.setdefault(e.path, []).append(e)
     for path, minimum in REQUIRED_IMAGES.items():
-        e = images.get(path)
-        if e is None:
+        rows = images.get(path)
+        if not rows:
             report.fail(f"required image {path} is not in the lock")
             continue
-        if minimum:
-            have, want = version_tuple(e.tag), version_tuple(minimum)
+        if not minimum:
+            continue
+        want = version_tuple(minimum)
+        for e in rows:  # every row of the image, whatever their order
+            have = version_tuple(e.tag)
             if have is None:
                 report.fail(f"{path}:{e.tag}: tag is not a version, minimum is {minimum}")
             elif have < want:
@@ -162,17 +175,20 @@ def check_offline(lock: Lock, report: Report, expect_deployment: str | None = No
 
 
 def resolve_digest(source: str) -> str | None:
-    raw = subprocess.run(
-        ["skopeo", "inspect", "--raw", f"docker://{source}"], capture_output=True, timeout=120
-    )
-    if raw.returncode != 0:
+    try:
+        raw = subprocess.run(
+            ["skopeo", "inspect", "--raw", f"docker://{source}"], capture_output=True, timeout=120
+        )
+        if raw.returncode != 0:
+            return None
+        dig = subprocess.run(
+            ["skopeo", "manifest-digest", "/dev/stdin"],
+            input=raw.stdout,
+            capture_output=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
         return None
-    dig = subprocess.run(
-        ["skopeo", "manifest-digest", "/dev/stdin"],
-        input=raw.stdout,
-        capture_output=True,
-        timeout=30,
-    )
     return dig.stdout.decode().strip() if dig.returncode == 0 else None
 
 
@@ -211,6 +227,16 @@ def image_path(ref: str) -> str:
     return re.split(r"[:@]", no_host, maxsplit=1)[0]
 
 
+def locked_path(path: str, pinned: dict[str, set[str]]) -> str | None:
+    """The lock path a running image path stands for. A mirror may add a
+    prefix (REGISTRY/PREFIX/ocm-wstack/...), so the lock path may be a suffix
+    of the running path, on a path-segment boundary. The longest match wins."""
+    if path in pinned:
+        return path
+    matches = [p for p in pinned if path.endswith("/" + p)]
+    return max(matches, key=len) if matches else None
+
+
 def check_cluster(lock: Lock, report: Report, rows: list[tuple[str, str, str]]) -> None:
     pinned: dict[str, set[str]] = {}
     for e in lock.entries:
@@ -219,15 +245,21 @@ def check_cluster(lock: Lock, report: Report, rows: list[tuple[str, str, str]]) 
     if not rows:
         report.fail("no running containers found in the namespace")
         return
+    seen: set[str] = set()
     for who, image, image_id in rows:
-        path = image_path(image)
+        path = locked_path(image_path(image), pinned)
         digest = image_id.rsplit("@", 1)[1] if "@" in image_id else ""
-        if path not in pinned:
+        if path is None:
             report.warn(f"{who}: {image} is not in the lock")
-        elif digest not in pinned[path]:
+            continue
+        seen.add(path)
+        if digest not in pinned[path]:
             pins = ", ".join(d[:19] for d in sorted(pinned[path]))
             running = digest[:19] or "an unknown digest"
             report.fail(f"{who}: {image} runs {running}, lock pins {pins}")
+    for path in REQUIRED_IMAGES:
+        if path not in seen:
+            report.fail(f"required image {path} has no running container in the namespace")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -247,6 +279,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--context", help="kubectl context for --cluster")
     args = ap.parse_args(argv)
+    if args.strict and not args.registry:
+        ap.error("--strict only applies with --registry")
+    if args.context and not args.cluster:
+        ap.error("--context only applies with --cluster")
 
     if not args.lock.is_file():
         print(f"lock file not found: {args.lock}", file=sys.stderr)
@@ -282,6 +318,9 @@ def main(argv: list[str] | None = None) -> int:
             rows = running_images(args.cluster, args.context)
         except subprocess.CalledProcessError as exc:
             print(f"kubectl failed: {exc.stderr.decode().strip()}", file=sys.stderr)
+            return 1
+        except subprocess.TimeoutExpired:
+            print("kubectl timed out listing the pods", file=sys.stderr)
             return 1
         check_cluster(lock, r, rows)
         r.print(f"baseline (cluster, namespace {args.cluster})")

@@ -31,6 +31,16 @@ def lock_text(
     return HEADER + "\n".join(rows) + "\n" + extra
 
 
+def all_running(host: str = REG, prefix: str = "", digest: str = D, skip: str | None = None):
+    """One running container per required image, as kubectl reports them."""
+    base = f"{host}/{prefix}" if prefix else host
+    return [
+        (f"{p.rsplit('/', 1)[1]}-0/main", f"{base}/{p}:1.0.0", f"{base}/{p}@{digest}")
+        for p in cb.REQUIRED_IMAGES
+        if p != skip
+    ]
+
+
 def run_offline(text: str, expect: str | None = None) -> cb.Report:
     r = cb.Report()
     lock = cb.parse_lock(text, r)
@@ -76,6 +86,24 @@ class Offline(unittest.TestCase):
         r = run_offline(lock_text({"ocm-wstack/credential-verification-service": "1.2.2-alpha"}))
         self.assertTrue(any("older than the minimum" in f for f in r.failures))
 
+    def test_pre_release_is_below_its_release(self):
+        r = run_offline(lock_text({CVS: "1.3.0-alpha"}))
+        self.assertTrue(any("older than the minimum" in f for f in r.failures))
+
+    def test_later_pre_release_meets_minimum(self):
+        r = run_offline(lock_text({CVS: "1.3.7-alpha"}))
+        self.assertEqual(r.failures, [])
+
+    def test_every_row_of_an_image_is_checked(self):
+        old = f"image\t{REG}/{CVS}:1.2.2-alpha\t{D2}\tz\n"
+        r = run_offline(lock_text(extra=old))  # the old row comes after the good one
+        self.assertTrue(any("1.2.2-alpha is older" in f for f in r.failures))
+
+    def test_version_tuple(self):
+        self.assertLess(cb.version_tuple("1.3.0-alpha"), cb.version_tuple("1.3.0"))
+        self.assertGreater(cb.version_tuple("v1.3.7-alpha"), cb.version_tuple("1.3.0"))
+        self.assertIsNone(cb.version_tuple("dev"))
+
     def test_wrong_deployment_commit(self):
         r = run_offline(lock_text(), expect="c1ba65c")
         self.assertTrue(any("expected c1ba65c" in f for f in r.failures))
@@ -115,32 +143,74 @@ class Registry(unittest.TestCase):
         cb.check_registry(self.lock, r, strict=False, resolver=lambda s: None)
         self.assertTrue(r.failures)
 
+    def test_timeout_counts_as_unresolved(self):
+        def slow(*args, **kwargs):
+            raise cb.subprocess.TimeoutExpired(cmd="skopeo", timeout=120)
+
+        real = cb.subprocess.run
+        cb.subprocess.run = slow
+        try:
+            self.assertIsNone(cb.resolve_digest(f"{REG}/x/y:1.0.0"))
+        finally:
+            cb.subprocess.run = real
+
 
 class Cluster(unittest.TestCase):
     def setUp(self):
         self.lock = cb.parse_lock(lock_text(), cb.Report())
         self.cvs = f"{REG}/ocm-wstack/credential-verification-service:1.3.7-alpha"
 
-    def test_pinned_digest_running(self):
+    def test_pinned_digests_running(self):
         r = cb.Report()
-        cb.check_cluster(self.lock, r, [("cvs-0/cvs", self.cvs, f"{REG}/{CVS}@{D}")])
+        cb.check_cluster(self.lock, r, all_running())
         self.assertEqual((r.failures, r.warnings), ([], []))
 
-    def test_mirror_matches_by_path(self):
+    def test_mirror_without_prefix_matches(self):
         r = cb.Report()
-        mirror = "mirror.example.net/ocm-wstack/credential-verification-service:1.3.7-alpha"
-        running = [("cvs-0/cvs", mirror, f"mirror.example.net/{CVS}@{D}")]
+        cb.check_cluster(self.lock, r, all_running(host="mirror.example.net"))
+        self.assertEqual((r.failures, r.warnings), ([], []))
+
+    def test_mirror_with_prefix_matches(self):
+        r = cb.Report()
+        running = all_running(host="harbor.example.org", prefix="facis-mirror")
         cb.check_cluster(self.lock, r, running)
-        self.assertEqual(r.failures, [])
+        self.assertEqual((r.failures, r.warnings), ([], []))
+
+    def test_mirror_with_prefix_wrong_digest_fails(self):
+        r = cb.Report()
+        running = all_running(host="harbor.example.org", prefix="facis-mirror", skip=CVS)
+        running.append(
+            (
+                "cvs-0/cvs",
+                f"harbor.example.org/facis-mirror/{CVS}:1.3.7-alpha",
+                f"harbor.example.org/facis-mirror/{CVS}@{D2}",
+            )
+        )
+        cb.check_cluster(self.lock, r, running)
+        self.assertTrue(any("runs sha256:bbbb" in f for f in r.failures), r.failures)
 
     def test_other_digest_running(self):
         r = cb.Report()
-        cb.check_cluster(self.lock, r, [("cvs-0/cvs", self.cvs, f"{REG}/{CVS}@{D2}")])
+        running = all_running(skip=CVS) + [("cvs-0/cvs", self.cvs, f"{REG}/{CVS}@{D2}")]
+        cb.check_cluster(self.lock, r, running)
         self.assertTrue(r.failures)
+
+    def test_missing_required_service_fails(self):
+        r = cb.Report()
+        cb.check_cluster(self.lock, r, all_running(skip=CVS))
+        self.assertTrue(any("no running container" in f and CVS in f for f in r.failures))
+
+    def test_only_unrelated_pods_fail(self):
+        r = cb.Report()
+        running = [("nats-0/nats", "docker.io/library/nats:2.10", f"docker.io/library/nats@{D}")]
+        cb.check_cluster(self.lock, r, running)
+        self.assertEqual(len(r.failures), len(cb.REQUIRED_IMAGES))
 
     def test_unknown_image_warns(self):
         r = cb.Report()
-        running = [("nats-0/nats", "docker.io/library/nats:2.10", f"docker.io/library/nats@{D}")]
+        running = all_running() + [
+            ("nats-0/nats", "docker.io/library/nats:2.10", f"docker.io/library/nats@{D}")
+        ]
         cb.check_cluster(self.lock, r, running)
         self.assertEqual(r.failures, [])
         self.assertTrue(r.warnings)
@@ -149,6 +219,18 @@ class Cluster(unittest.TestCase):
         r = cb.Report()
         cb.check_cluster(self.lock, r, [])
         self.assertTrue(r.failures)
+
+
+class Arguments(unittest.TestCase):
+    def test_strict_needs_registry(self):
+        with self.assertRaises(SystemExit) as cm:
+            cb.main(["--strict"])
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_context_needs_cluster(self):
+        with self.assertRaises(SystemExit) as cm:
+            cb.main(["--context", "some-context"])
+        self.assertEqual(cm.exception.code, 2)
 
 
 if __name__ == "__main__":
