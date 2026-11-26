@@ -21,6 +21,10 @@
 #                      called as  $PRESENT_CMD <openid4vp-link> <case-json>
 #                      (case: roles, revoked, issuer, tamper...); exit 0 when it
 #                      presented, 3 when it cannot play that case (skipped)
+#        E2E_KEEP_STATE=1  do not restart the login provider first (by default the
+#                      check starts from a fresh one: attempts and lockout counts
+#                      are held in its memory, and leftovers of an earlier run
+#                      would lock the test out)
 #        E2E_ISSUER, E2E_ORG, E2E_HOLDER   the credential's issuer, organisation
 #                      and holder DID (defaults: the stub's); with PRESENT_CMD
 #                      and no E2E_HOLDER, the subject is only checked to be a DID
@@ -103,6 +107,16 @@ if [ "${1:-}" = --token ]; then
     [ "${LOGIN_STATE}" = done ] && [ -n "${CODE}" ] || { echo "login refused (${LOGIN_STATE})" >&2; exit 1; }
     token "${3:-facis-local-test}" | jq -r .access_token
     exit 0
+fi
+
+if [ "${E2E_KEEP_STATE:-}" != 1 ]; then
+    echo "== 0. fresh login provider (no attempts, no lockout counts)"
+    kubectl --context "${ctx}" -n "${ns}" rollout restart deployment/guard-login >/dev/null
+    kubectl --context "${ctx}" -n "${ns}" rollout status deployment/guard-login --timeout 180s >/dev/null
+    for _ in $(seq 1 60); do
+        [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=probe")" = 400 ] && break
+        sleep 2
+    done
 fi
 
 echo "== 1. a valid presentation logs in"

@@ -468,3 +468,38 @@ test('challenges: the authorization server\'s long challenges are accepted, the 
     r = await run(c, 'guard-login-start', req({ login_challenge: long + '"><' }));
     assert.equal(r.result[1]._guardError.code, 400, 'outside the alphabet');
 });
+
+test('lockout: a successful login clears the failure counts of its address and holder', async () => {
+    const c = await configured();
+    async function refusal() {
+        const s = await startLogin(c);
+        const p = await poll(c, s.id, record(vpJwt({ nonce: 'wrong' })));
+        p.refused._guard.holder = HOLDER;
+        await run(c, 'guard-refuse', p.refused);
+    }
+    for (let i = 0; i < 4; i++) await refusal();
+    assert.equal(c.flowCtx.get('guardLockouts')['addr:203.0.113.7'].failures.length, 4);
+    // a successful login
+    const { m } = await toStatusList(c);
+    m.statusCode = 200; m.payload = statusList();
+    const pm = (await run(c, 'guard-status-list', m)).result[0];
+    pm.statusCode = 200; pm.payload = { result: { allow: true } };
+    const acc = (await run(c, 'guard-policy-decision', pm)).result[0];
+    acc.statusCode = 200; acc.payload = { redirect_to: 'https://login.example.org/oauth2/auth?login_verifier=v' };
+    await run(c, 'guard-login-accepted', acc);
+    const locks = c.flowCtx.get('guardLockouts');
+    assert.equal(locks['addr:203.0.113.7'], undefined, 'address counts cleared');
+    assert.equal(locks['holder:' + HOLDER], undefined, 'holder counts cleared');
+    // one more refusal does not lock: the count starts again
+    await refusal();
+    assert.ok(!(c.flowCtx.get('guardLockouts')['addr:203.0.113.7'].until > Date.now()));
+});
+
+test('lockout: a lockout in force is not lifted by a login of another attempt', async () => {
+    const c = await configured();
+    const s = await startLogin(c);
+    c.flowCtx.set('guardLockouts', { ['holder:' + HOLDER]: { failures: [], until: Date.now() + 60000 } });
+    const acc = { _guard: { attemptId: s.id, holder: HOLDER, credential: { org_did: ORG } }, statusCode: 200, payload: { redirect_to: 'https://x.example.org/' } };
+    await run(c, 'guard-login-accepted', acc);
+    assert.ok(c.flowCtx.get('guardLockouts')['holder:' + HOLDER].until > Date.now());
+});
