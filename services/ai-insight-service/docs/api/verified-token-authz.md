@@ -46,7 +46,7 @@ and `GET /api/ai/outputs/{output_id}` (previously unauthenticated).
 | `AI_INSIGHT_AUTH__MODE` | `verified` | the only mode: `off` (the former header-trust mode) fails closed with `401 mode_removed` |
 | `AI_INSIGHT_AUTH__ISSUER` | `FACIS_KEYCLOAK_URL` (`https://identity.facis.cloud/realms/facis`) | Expected `iss` |
 | `AI_INSIGHT_AUTH__JWKS_URL` | `<issuer>/protocol/openid-connect/certs` | Key material |
-| `AI_INSIGHT_AUTH__AUDIENCE` | unset | Optional `aud` check |
+| `AI_INSIGHT_AUTH__AUDIENCE` | unset (local only) | `aud` check. **Required outside local dev**: without it, any access token of the issuer is accepted regardless of the client it was minted for (cross-client replay). Set it to the AI Insight client id (with a Keycloak issuer, through an audience mapper) |
 | `AI_INSIGHT_AUTH__JWKS_TTL_SECONDS` | `300` | JWKS cache TTL |
 
 Deploy prerequisite: legitimate consumers (dashboards, service accounts) must
