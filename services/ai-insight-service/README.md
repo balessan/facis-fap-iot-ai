@@ -54,13 +54,13 @@ of a partial set wipes the other services' tabs on the shared runtime.
 
 Auth mode: the UI proxy forwards the caller's bearer token
 (`Authorization: Bearer <access token>`, carried in the command envelope);
-it no longer injects `x-user-roles`. The backend runs in **verified mode** only:
+it no longer injects a roles header. The backend runs in **verified mode** only:
 identity derives exclusively from the cryptographically verified JWT
 (`AI_INSIGHT_AUTH__MODE=verified`, the default; `AI_INSIGHT_AUTH__ISSUER` +
 `AI_INSIGHT_AUTH__JWKS_URL`). The legacy header-trust mode (setting
 `AI_INSIGHT_AUTH__MODE` to `off`) was **removed from the code** — doing so now
 fails closed with `401 mode_removed` instead of trusting client headers. A
-forged `x-user-roles` header grants nothing.
+forged roles header grants nothing.
 
 > Note: `docs/guides/*` and `docs/deployment/*` still describe the old Python
 > deployment and are pending a documentation refresh.

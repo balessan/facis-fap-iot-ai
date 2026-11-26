@@ -256,7 +256,9 @@ helm install facis-ai-insight ./facis-ai-insight -n facis -f values-cluster.yaml
 | `policy.enabled` | bool | `true` | Enable request-level policy checks |
 | `policy.agreementHeader` | string | `x-agreement-id` | Agreement ID header name |
 | `policy.assetHeader` | string | `x-asset-id` | Asset ID header name |
-| `policy.roleHeader` | string | `x-user-roles` | Roles header name |
+
+> There is no `policy.roleHeader` anymore — roles come only from the
+> verified JWT (`Authorization: Bearer`), never from a client header.
 
 ### 4.5 Rate Limiting
 
@@ -381,7 +383,7 @@ curl -X POST http://localhost:8080/api/v1/insights/energy-summary \
   -H "Content-Type: application/json" \
   -H "x-agreement-id: agreement-001" \
   -H "x-asset-id: asset-001" \
-  -H "x-user-roles: ai_insight_consumer" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "start_ts": "2026-04-01T00:00:00Z",
     "end_ts": "2026-04-05T00:00:00Z",
@@ -393,7 +395,7 @@ curl -X POST http://localhost:8080/api/v1/insights/anomaly-report \
   -H "Content-Type: application/json" \
   -H "x-agreement-id: agreement-001" \
   -H "x-asset-id: asset-001" \
-  -H "x-user-roles: ai_insight_consumer" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "start_ts": "2026-04-01T00:00:00Z",
     "end_ts": "2026-04-05T00:00:00Z",
@@ -405,7 +407,7 @@ curl -X POST http://localhost:8080/api/v1/insights/city-status \
   -H "Content-Type: application/json" \
   -H "x-agreement-id: agreement-001" \
   -H "x-asset-id: asset-001" \
-  -H "x-user-roles: ai_insight_consumer" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "start_ts": "2026-04-01T00:00:00Z",
     "end_ts": "2026-04-05T00:00:00Z",
@@ -591,7 +593,7 @@ kubectl exec -n stackable <trino-pod> -- \
 curl -X POST http://localhost:8080/api/v1/insights/energy-summary \
   -H "x-agreement-id: test-agreement" \
   -H "x-asset-id: test-asset" \
-  -H "x-user-roles: ai_insight_consumer" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"start_ts": "2026-04-01T00:00:00Z", "end_ts": "2026-04-05T00:00:00Z"}'
 ```
 
@@ -599,10 +601,9 @@ curl -X POST http://localhost:8080/api/v1/insights/energy-summary \
 
 | Cause | Fix |
 |-------|-----|
-| Missing required role header | Include `x-user-roles: ai_insight_consumer` (or your configured role). |
-| Role not in required list | Verify user roles match `policy.requiredRoles` in Helm values. |
-| Policy enforcement enabled but headers missing | If policy is enabled, all three headers (agreement, asset, roles) are required. |
-| Role header format wrong | Roles are comma-separated: `x-user-roles: role1,role2`. |
+| Missing/invalid bearer token (401) | Send `Authorization: Bearer $TOKEN` with a token minted by the configured issuer (`AI_INSIGHT_AUTH__ISSUER`). |
+| Token valid but role missing (403) | Give the user or client one of the required roles (`AI_INSIGHT_POLICY__REQUIRED_ROLES`, default `ai_insight_consumer`) at the token issuer — roles are read from the token claims only. |
+| Policy scope headers missing | If policy is enabled, `x-agreement-id` and `x-asset-id` are required as request scope. |
 
 ### 7.5 Rate Limit 429 Errors
 
@@ -735,10 +736,10 @@ SERVICE ENDPOINTS
   City Status:      POST /api/v1/insights/city-status
   Latest Insights:  GET  /api/v1/insights/latest
 
-REQUIRED REQUEST HEADERS (if policy enabled)
-  x-agreement-id:   agreement identifier (required)
-  x-asset-id:       asset identifier (required)
-  x-user-roles:     comma-separated roles (required, must include ai_insight_consumer)
+REQUIRED REQUEST HEADERS
+  Authorization:    Bearer <verified access token> (roles come from its claims)
+  x-agreement-id:   agreement identifier (request scope, if policy enabled)
+  x-asset-id:       asset identifier (request scope, if policy enabled)
 
 ENVIRONMENT VARIABLES (AI_INSIGHT_ prefix, __ nesting)
   AI_INSIGHT_HTTP__HOST=0.0.0.0

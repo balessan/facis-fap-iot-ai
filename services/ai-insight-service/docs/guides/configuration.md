@@ -89,7 +89,6 @@ Important defaults from `config/default.yaml`:
 - `AI_INSIGHT_POLICY__ENABLED`
 - `AI_INSIGHT_POLICY__AGREEMENT_HEADER`
 - `AI_INSIGHT_POLICY__ASSET_HEADER`
-- `AI_INSIGHT_POLICY__ROLE_HEADER`
 - `AI_INSIGHT_POLICY__REQUIRED_ROLES`
 - `AI_INSIGHT_POLICY__ALLOWED_AGREEMENT_IDS`
 - `AI_INSIGHT_POLICY__ALLOWED_ASSET_IDS`
@@ -101,10 +100,12 @@ Important defaults from `config/default.yaml`:
 > dsp-connector signs for, replacing the old un-matching `/api/v1/dsp/pull` stub)
 > verifies the HMAC `token` query parameter, then enforces `PolicyEnforcer` using
 > the `agreementId`/`roles` query params bound into that same signature -- never
-> from `x-agreement-id`/`x-asset-id`/`x-user-roles` headers. Those three headers
-> (`AI_INSIGHT_POLICY__AGREEMENT_HEADER`/`ASSET_HEADER`/`ROLE_HEADER`) remain in
-> effect only for `POST /api/v1/dsp/create-pull-url`'s own admission check, which
-> is a separate, unchanged signing path.
+> from `x-agreement-id`/`x-asset-id` headers. Roles are never
+> read from a header: `AI_INSIGHT_POLICY__ROLE_HEADER` was removed with the
+> header-trust mode, and identity (roles, subject) comes exclusively from the
+> cryptographically verified JWT (`AI_INSIGHT_AUTH__MODE=verified`). The
+> `x-agreement-id`/`x-asset-id` headers remain as request scope on the insight
+> endpoints only.
 
 ### Cache and Audit
 

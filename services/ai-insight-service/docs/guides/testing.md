@@ -157,9 +157,9 @@ Tests agreement-based sliding-window enforcement:
 - Tracks per-agreement state independently
 
 ### Policy Enforcement (`test_policy_enforcement.py`)
-Tests access control from headers:
+Tests access control from the scope headers and the verified token:
 - Denies missing X-Agreement-Id header
-- Denies when X-User-Roles doesn't include `ai_insight_consumer`
+- Denies when the token's roles don't include `ai_insight_consumer`
 - Allows matching agreement and role
 
 ### Output Store (`test_output_store.py`)
