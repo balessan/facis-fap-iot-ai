@@ -50,7 +50,9 @@ curl -sf --max-time 20 -o /dev/null "${BASE}/.well-known/openid-configuration" |
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 jwt_payload() { local p; p="$(cut -d. -f2 <<<"$1" | tr '_-' '/+')"; while [ $(( ${#p} % 4 )) -ne 0 ]; do p="${p}="; done; base64 -d <<<"${p}" 2>/dev/null || true; }
 urldecode() { local s="${1//+/ }"; printf '%b' "${s//%/\\x}"; }
-location() { curl -s --max-time 20 -b "${work}/jar" -c "${work}/jar" -o /dev/null -w '%{redirect_url}' "$1"; }
+# A failed or timed-out request never ends the script: it yields an empty value
+# or a state that the checks then report as a failure.
+location() { curl -s --max-time 20 -b "${work}/jar" -c "${work}/jar" -o /dev/null -w '%{redirect_url}' "$1" || true; }
 
 # login CLIENT PRESENT_JSON -> sets LOGIN_STATE (done|refused|...), CODE, VERIFIER
 login() {
@@ -62,7 +64,7 @@ login() {
     auth="${auth}&scope=openid&audience=facis-ai-insight&state=$(openssl rand -hex 8)&nonce=$(openssl rand -hex 8)"
     auth="${auth}&code_challenge=${challenge}&code_challenge_method=S256"
     url="$(location "${auth}")"
-    LOGIN_HTTP="$(curl -s --max-time 20 -b "${work}/jar" -c "${work}/jar" -o "${work}/page.html" -w '%{http_code}' "${url}")"
+    LOGIN_HTTP="$(curl -s --max-time 20 -b "${work}/jar" -c "${work}/jar" -o "${work}/page.html" -w '%{http_code}' "${url}" || true)"
     LOGIN_STATE=""; CODE=""
     [ "${LOGIN_HTTP}" = 200 ] || { LOGIN_STATE="page-${LOGIN_HTTP}"; return 0; }
     html="$(cat "${work}/page.html")"
@@ -72,7 +74,7 @@ login() {
     [ -n "${id}" ] && [ -n "${state}" ] || { LOGIN_STATE="page-unreadable"; return 0; }
     if [ -n "${STUB}" ]; then
         curl -sf --max-time 20 -o /dev/null -X POST -H 'content-type: application/json' "${BASE}/stub/present" \
-            -d "$(jq -c --arg s "${state}" '. + {state: $s}' <<<"${present}")"
+            -d "$(jq -c --arg s "${state}" '. + {state: $s}' <<<"${present}")" || { LOGIN_STATE=stub-unreachable; return 0; }
     else
         local rc=0
         "${PRESENT_CMD}" "${link}" "${present}" || rc=$?
@@ -80,8 +82,8 @@ login() {
         [ "${rc}" = 0 ] || { LOGIN_STATE="wallet-failed-${rc}"; return 0; }
     fi
     for _ in $(seq 1 20); do
-        s="$(curl -s --max-time 20 "${BASE}/guard/login/status?attempt=${id}")"
-        LOGIN_STATE="$(jq -r .state <<<"${s}")"
+        s="$(curl -s --max-time 20 "${BASE}/guard/login/status?attempt=${id}" || true)"
+        LOGIN_STATE="$(jq -r .state <<<"${s}" 2>/dev/null || echo status-unreadable)"
         [ "${LOGIN_STATE}" = pending ] || break
         sleep 1
     done
@@ -99,7 +101,7 @@ present() { # roles-json [extra-json]
 }
 token() { # client -> token response JSON
     curl -s --max-time 20 -X POST "${BASE}/oauth2/token" -d grant_type=authorization_code --data-urlencode "code=${CODE}" \
-        --data-urlencode "redirect_uri=${REDIRECT}" -d client_id="$1" --data-urlencode "code_verifier=${VERIFIER}"
+        --data-urlencode "redirect_uri=${REDIRECT}" -d client_id="$1" --data-urlencode "code_verifier=${VERIFIER}" || echo '{}'
 }
 
 if [ "${1:-}" = --token ]; then
@@ -130,7 +132,7 @@ if [ "${LOGIN_STATE}" = done ] && [ -n "${CODE}" ]; then
     tr="$(token facis-ai-insight-ui)"
     at="$(jq -r .access_token <<<"${tr}")"
     [ "$(jq -r '.refresh_token // empty' <<<"${tr}")" = "" ] && ok "no refresh token" || bad "a refresh token was issued"
-    curl -s --max-time 20 "${BASE}/.well-known/jwks.json" > "${work}/jwks.json"
+    curl -s --max-time 20 "${BASE}/.well-known/jwks.json" > "${work}/jwks.json" || echo '{}' > "${work}/jwks.json"
     jq -n --arg t "${at}" --slurpfile k "${work}/jwks.json" '{t: $t, jwks: ($k[0] | tostring)}' > "${work}/in.json"
     v="$(opa eval -I --format raw 'io.jwt.decode_verify(input.t, {"cert": input.jwks, "iss": "http://localhost:8444/", "aud": "facis-ai-insight"})' < "${work}/in.json")"
     [ "$(jq -r '.[0]' <<<"${v}")" = true ] && ok "access token signature, issuer and audience verified against the JWKS" || bad "access token does not verify: ${v}"
@@ -185,7 +187,7 @@ kubectl --context "${ctx}" -n "${ns}" get secret guard-login-local -o jsonpath='
 kubectl --context "${ctx}" -n "${ns}" port-forward svc/guard-login 18800:1880 > /dev/null 2>&1 & pf=$!
 for _ in $(seq 1 20); do curl -s --max-time 20 -o /dev/null http://localhost:18800/guard/health && break; sleep 0.5; done
 ah="Authorization: Bearer $(cat "${work}/admin")"
-keys="$(curl -s --max-time 20 -H @<(printf '%s' "${ah}") http://localhost:18800/guard/admin/lockouts | jq -r '.lockouts[].key')"
+keys="$(curl -s --max-time 20 -H @<(printf '%s' "${ah}") http://localhost:18800/guard/admin/lockouts | jq -r '.lockouts[].key' 2>/dev/null || true)"
 [ -n "${keys}" ] && ok "lockouts listed: $(tr '\n' ' ' <<<"${keys}" | sed 's/did:key:[^ ]*/<holder>/')" || bad "no lockout listed"
 for key in ${keys}; do curl -s --max-time 20 -o /dev/null -X DELETE -H @<(printf '%s' "${ah}") "http://localhost:18800/guard/admin/lockouts?key=$(jq -rn --arg k "${key}" '$k|@uri')"; done
 [ "$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' http://localhost:18800/guard/admin/lockouts)" = 401 ] && ok "lockout endpoints need the admin token" || bad "lockout endpoints open"
