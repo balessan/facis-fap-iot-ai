@@ -113,10 +113,14 @@ if [ "${E2E_KEEP_STATE:-}" != 1 ]; then
     echo "== 0. fresh login provider (no attempts, no lockout counts)"
     kubectl --context "${ctx}" -n "${ns}" rollout restart deployment/guard-login >/dev/null
     kubectl --context "${ctx}" -n "${ns}" rollout status deployment/guard-login --timeout 180s >/dev/null
+    # a malformed challenge answers 400 as soon as the login provider is up with
+    # a valid configuration, without asking the authorization server
+    up=""
     for _ in $(seq 1 60); do
-        [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=probe")" = 400 ] && break
+        [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=%21")" = 400 ] && { up=1; break; }
         sleep 2
     done
+    [ -n "${up}" ] || { echo "the login provider does not answer after its restart" >&2; exit 1; }
 fi
 
 echo "== 1. a valid presentation logs in"
