@@ -127,7 +127,10 @@ if [ "${LOGIN_STATE}" = done ] && [ -n "${CODE}" ]; then
     if [ -n "${STUB}" ]; then
         jq -e '.purpose == ["analytics", "ai_insight"]' >/dev/null <<<"${p}" && ok "purposes as presented" || bad "purpose $(jq -c .purpose <<<"${p}")"
     fi
-    [ "$(jq '.exp - .iat' <<<"${p}")" -le 300 ] && ok "access token lives 5 minutes" || bad "lifetime $(jq '.exp - .iat' <<<"${p}")s"
+    # 5 minutes; exp and iat are rounded to the second at slightly different
+    # moments, so allow a few seconds (a wrong setting, 1 hour, still fails)
+    life="$(jq '.exp - .iat' <<<"${p}")"
+    [ "${life}" -ge 290 ] && [ "${life}" -le 305 ] && ok "access token lives 5 minutes (${life}s)" || bad "lifetime ${life}s"
     it="$(jwt_payload "$(jq -r .id_token <<<"${tr}")")"
     if [ -n "${STUB}" ]; then
         jq -e '.name == "Local Test" and .email == "local.test@example.org" and .roles == ["data_analyst"]' >/dev/null 2>&1 <<<"${it}" \
