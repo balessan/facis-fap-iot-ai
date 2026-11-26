@@ -126,12 +126,13 @@ test("policy disabled still resolves an access context", () => {
     assert.equal(result.accessContext.agreement_id, "unknown-agreement");
 });
 
-test("dev-only AI_INSIGHT_AUTH__MODE=off restores legacy header roles", () => {
+test("fail closed: authMode=off no longer exists — a forged role header still grants nothing", () => {
     const result = evaluatePolicyAndRateLimit({
         headers: { ...GOVERNANCE_HEADERS, "x-user-roles": "ai_insight_consumer" },
         identity: null,
-        authMode: "off",
+        authMode: "off", // ignored: the header-trust mode was removed from the code
     });
-    assert.equal(result.decision, "ok");
-    assert.deepEqual(result.accessContext.roles, ["ai_insight_consumer"]);
+    assert.equal(result.decision, "forbidden");
+    assert.equal(result.statusCode, 403);
+    assert.match(result.payload.detail, /missing required role ai_insight_consumer/);
 });

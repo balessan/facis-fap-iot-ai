@@ -31,7 +31,6 @@ function evaluatePolicyAndRateLimit(options = {}) {
     const {
         headers = {},
         identity = null,
-        authMode = "enforce",
         authRejected = false,
         env = {},
         buckets = {},
@@ -55,14 +54,8 @@ function evaluatePolicyAndRateLimit(options = {}) {
     const agreementId = String(pickHeader(agreementHeader) || "").trim();
     const assetId = String(pickHeader(assetHeader) || "").trim();
 
-    let roles;
-    if (String(authMode).toLowerCase() === "off") {
-        const roleHeader = getEnv("AI_INSIGHT_POLICY__ROLE_HEADER") || "x-user-roles";
-        const rawRoles = String(pickHeader(roleHeader) || "").trim();
-        roles = rawRoles ? rawRoles.split(",").map((item) => item.trim()).filter(Boolean) : [];
-    } else {
-        roles = (identity && Array.isArray(identity.roles)) ? identity.roles : [];
-    }
+    // Identity only ever comes from the verified token.
+    const roles = (identity && Array.isArray(identity.roles)) ? identity.roles : [];
 
     if (policyEnabled) {
         if (!agreementId || !assetId) {

@@ -52,15 +52,15 @@ To (re)deploy the flows: merge `orce/flows/*.json` (excluding
 `POST /orce/flows` as a full deploy. Do NOT POST only these flows — a full deploy
 of a partial set wipes the other services' tabs on the shared runtime.
 
-Auth mode: the UI proxy is a trusted gateway that strips client headers and
-injects `x-user-roles`, forwarding no bearer token, so the backend must run in
-header-trust mode — set **`AI_INSIGHT_AUTH__MODE=off`** on the shared runtime
-(secret `facis-ai-insight-secrets`). With the default `enforce`, every
-`/api/v1/insights/*` call returns `401 Authorization: Bearer <access token> is
-required` and the UI hangs on "Generating insights…". For per-user verified-token
-auth instead, set `AI_INSIGHT_AUTH__MODE=enforce` with `AI_INSIGHT_AUTH__ISSUER`
-+ `AI_INSIGHT_AUTH__JWKS_URL`, and change the proxy to forward the caller's
-Keycloak bearer token.
+Auth mode: the UI proxy forwards the caller's bearer token
+(`Authorization: Bearer <access token>`, carried in the command envelope);
+it no longer injects `x-user-roles`. The backend runs in **verified mode** only:
+identity derives exclusively from the cryptographically verified JWT
+(`AI_INSIGHT_AUTH__MODE=verified`, the default; `AI_INSIGHT_AUTH__ISSUER` +
+`AI_INSIGHT_AUTH__JWKS_URL`). The legacy header-trust mode (setting
+`AI_INSIGHT_AUTH__MODE` to `off`) was **removed from the code** — doing so now
+fails closed with `401 mode_removed` instead of trusting client headers. A
+forged `x-user-roles` header grants nothing.
 
 > Note: `docs/guides/*` and `docs/deployment/*` still describe the old Python
 > deployment and are pending a documentation refresh.

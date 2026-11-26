@@ -13,6 +13,7 @@
 //            FAP_UI_General_Guideline_Reference_Aligned.md  §11
 
 import { useUiBuilderStore } from '@/stores/uibuilder'
+import { getAccessToken } from '../auth'
 import { useAppStore } from './state'
 import type {
   CommandRequest,
@@ -117,6 +118,9 @@ export function submit<P, D = unknown>(
     sessionId: opts.sessionId ?? app.state.sessionId ?? undefined,
     step: opts.step ?? app.state.step,
     requestId,
+    // Propagate the caller's access token so proxy flows can forward it
+    // as a Bearer header (verified mode; the header-trust mode is removed).
+    token: getAccessToken() ?? undefined,
     payload,
     meta: { clientTs: Date.now(), source: 'dashboard' },
   }

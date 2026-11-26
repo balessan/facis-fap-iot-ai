@@ -43,7 +43,7 @@ and `GET /api/ai/outputs/{output_id}` (previously unauthenticated).
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `AI_INSIGHT_AUTH__MODE` | `enforce` | `off` = dev-only legacy header roles (logs a warning) |
+| `AI_INSIGHT_AUTH__MODE` | `verified` | the only mode: `off` (the former header-trust mode) fails closed with `401 mode_removed` |
 | `AI_INSIGHT_AUTH__ISSUER` | `FACIS_KEYCLOAK_URL` (`https://identity.facis.cloud/realms/facis`) | Expected `iss` |
 | `AI_INSIGHT_AUTH__JWKS_URL` | `<issuer>/protocol/openid-connect/certs` | Key material |
 | `AI_INSIGHT_AUTH__AUDIENCE` | unset | Optional `aud` check |

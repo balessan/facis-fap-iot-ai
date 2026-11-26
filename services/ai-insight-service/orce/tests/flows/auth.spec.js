@@ -94,12 +94,6 @@ test("unknown kid -> 401 invalid_token", async () => {
     assert.equal(result.code, "invalid_token");
 });
 
-test("mode off returns null identity without rejecting (dev only)", async () => {
-    const result = await verifyBearer({ authorization: "", jwks, issuer: ISSUER, mode: "off" });
-    assert.equal(result.authRejected, false);
-    assert.equal(result.identity, null);
-});
-
 // ---- flow-JSON guards ----
 
 function readFlow(name) {
@@ -120,7 +114,8 @@ test("auth flow: verifier uses jose via libs and returns via link out", () => {
     const ret = flow.find((n) => n.id === "aiinsight_auth_return");
     assert.equal(ret.mode, "return");
     const prep = flow.find((n) => n.id === "fn_auth_prep");
-    assert.match(prep.func, /AI_INSIGHT_AUTH__MODE.*\|\|\s*'enforce'/);
+    assert.match(prep.func, /AI_INSIGHT_AUTH__MODE.*\|\|\s*'verified'/);
+    assert.match(prep.func, /mode === 'off'/); // fail-closed guard, not a trust branch
     assert.match(prep.func, /WWW-Authenticate/);
 });
 
@@ -133,17 +128,15 @@ test("every insight POST flow calls the shared verifier before policy", () => {
     }
 });
 
-test("policy nodes never read roles from headers outside the dev-off branch", () => {
+test("policy nodes never read roles from headers (the header-trust mode is removed)", () => {
     for (const name of INSIGHT_FLOWS) {
         const flow = readFlow(name);
         const policy = flow.find((n) => n.type === "function" && (n.name || "") === "PolicyAndRateLimit");
         assert.ok(policy, `${name}: policy node missing`);
         assert.match(policy.func, /if \(msg\.authRejected\)/);
         assert.match(policy.func, /msg\.identity && Array\.isArray\(msg\.identity\.roles\)/);
-        const offBranch = policy.func.indexOf("authMode === 'off'");
-        const roleHeaderRead = policy.func.indexOf("AI_INSIGHT_POLICY__ROLE_HEADER");
-        assert.ok(offBranch !== -1 && roleHeaderRead > offBranch,
-            `${name}: role header may only be read inside the off branch`);
+        assert.ok(!policy.func.includes("authMode") && !policy.func.includes("ROLE_HEADER"),
+            `${name}: header-trust path removed — identity comes from msg.identity only`);
         assert.match(policy.func, /subject \+ '\|' \+ \(agreementId/);
     }
 });

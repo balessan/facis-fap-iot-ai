@@ -21,12 +21,7 @@ async function verifyBearer(options = {}) {
         jwks = { keys: [] },
         issuer,
         audience = null,
-        mode = "enforce",
     } = options;
-
-    if (String(mode).toLowerCase() === "off") {
-        return { authRejected: false, identity: null, mode: "off" };
-    }
 
     const m = /^Bearer\s+(.+)$/i.exec(String(authorization).trim());
     if (!m) {
