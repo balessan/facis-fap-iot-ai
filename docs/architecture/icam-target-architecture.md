@@ -139,8 +139,11 @@ Login rules:
   when it accepts the login and the consent.
 - **Exposure:** only the public OAuth2 and OpenID Connect endpoints and the login page are reachable
   from outside. The authorization server's admin API is reachable only by the login provider.
-- **Configuration of the login provider:** the trusted issuers and the organisations each one may
-  vouch for, the roles allowed per application, and the web wallets the login page may redirect to.
+- **Configuration:** the trusted issuers, the organisations each one may vouch for and the roles
+  allowed per application are deployment data of the policy engine, so the login rules are decided
+  and tested in one place (`facis.login`); the login provider sends the credential's issuer and the
+  application with each decision. The login provider's own configuration names the verifier, the
+  status list origins of the trusted issuers and the web wallets the login page may redirect to.
 - **Logout** ends the guard session. Tokens already issued expire within 5 minutes.
 - **Keycloak** is no longer on the login path of the web applications. The Easy Stack Builder nodes
   still use their own Keycloak for the W-Stack and PCM Cloud.
