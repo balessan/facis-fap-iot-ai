@@ -19,10 +19,26 @@ for fixture in "${here}"/fixtures/*.json; do
     expect="$(jq -r '.expect' "${fixture}")"
     total=$((total + 1))
 
-    result="$(jq '.input' "${fixture}" \
+    case "${expect}" in
+        allow | deny) ;;
+        *) echo "FAIL  ${name}: expect must be allow or deny, not '${expect}'"; failed=$((failed + 1)); continue ;;
+    esac
+
+    # Evaluate the whole decision, not just .allow: an undefined query (a typo
+    # in the path) must fail, not pass as a deny.
+    if ! decision="$(jq '.input' "${fixture}" \
         | opa eval --bundle "${bundle}" --stdin-input --format raw \
-            "data.${query//\//.}.allow")"
-    if [ "${result}" = "true" ]; then got=allow; else got=deny; fi
+            "data.${query//\//.}")"; then
+        echo "FAIL  ${name}: opa eval failed for ${query}"
+        failed=$((failed + 1))
+        continue
+    fi
+    if [ -z "${decision}" ]; then
+        echo "FAIL  ${name}: query ${query} is not defined in the bundle"
+        failed=$((failed + 1))
+        continue
+    fi
+    if [ "$(jq -r '.allow' <<<"${decision}")" = "true" ]; then got=allow; else got=deny; fi
 
     if [ "${got}" = "${expect}" ]; then
         echo "ok    ${name}: ${got}"

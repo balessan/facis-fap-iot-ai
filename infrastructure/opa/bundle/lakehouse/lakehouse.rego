@@ -24,11 +24,11 @@ role_allowed_on(layer, roles) if {
 # accompanied by a stronger role is governed by that role (rules are
 # mutually exclusive: at most one matches, otherwise the value is undefined
 # and the caller treats it as deny)
-table_allowed(layer, table, roles) if {
+table_allowed(_, _, roles) if {
 	not "operator" in data.facis.common.effective_roles(roles)
 }
 
-table_allowed(layer, table, roles) if {
+table_allowed(_, _, roles) if {
 	"operator" in data.facis.common.effective_roles(roles)
 	not data.facis.common.effective_roles(roles) == ["operator"]
 }
