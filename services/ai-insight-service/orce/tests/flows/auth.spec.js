@@ -44,23 +44,23 @@ async function sign(claims = {}, { key = null, expiresIn = "5m", kid = KID } = {
         .sign(key || signingKey);
 }
 
-test("valid token yields identity with realm_access roles", async () => {
+test("valid token yields identity with realm_access roles (Keycloak issuer: rolesClaim set)", async () => {
     const token = await sign();
-    const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER });
+    const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER, rolesClaim: "realm_access.roles" });
     assert.equal(result.authRejected, false);
     assert.equal(result.identity.sub, "svc-account-1");
     assert.deepEqual(result.identity.roles, ["data_analyst"]);
 });
 
-test("roles claim is configurable: top-level roles (guard tokens) with rolesClaim=roles", async () => {
+test("default roles claim: top-level roles (guard tokens), strings only", async () => {
     const token = await sign({ realm_access: undefined, roles: ["data_scientist", 42] });
-    const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER, rolesClaim: "roles" });
+    const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER });
     assert.equal(result.authRejected, false);
     assert.deepEqual(result.identity.roles, ["data_scientist"]);
 });
 
-test("default roles claim ignores top-level roles", async () => {
-    const token = await sign({ realm_access: undefined, roles: ["administrator"] });
+test("default roles claim ignores Keycloak realm roles", async () => {
+    const token = await sign({ realm_access: { roles: ["administrator"] } });
     const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER });
     assert.deepEqual(result.identity.roles, []);
 });

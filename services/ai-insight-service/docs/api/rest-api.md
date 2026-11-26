@@ -33,8 +33,8 @@ Runtime documentation endpoints:
 
 Insight endpoints require a verified bearer token and are then governed by
 policy and rate limiting. Roles come from the token's roles claim
-(`AI_INSIGHT_AUTH__ROLES_CLAIM`: `realm_access.roles` by default, the Keycloak
-layout; `roles` for the guard's tokens), never from a header. At least one of the
+(`AI_INSIGHT_AUTH__ROLES_CLAIM`: `roles` by default, where the guard's tokens
+carry them; `realm_access.roles` for a Keycloak issuer), never from a header. At least one of the
 required roles is needed.
 
 Required headers (default names):

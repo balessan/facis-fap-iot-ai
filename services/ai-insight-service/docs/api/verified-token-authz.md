@@ -44,11 +44,11 @@ and `GET /api/ai/outputs/{output_id}` (previously unauthenticated).
 | Env var | Default | Purpose |
 |---|---|---|
 | `AI_INSIGHT_AUTH__MODE` | `verified` | the only mode: `off` (the former header-trust mode) fails closed with `401 mode_removed` |
-| `AI_INSIGHT_AUTH__ISSUER` | `FACIS_KEYCLOAK_URL` (`https://identity.facis.cloud/realms/facis`) | Expected `iss` |
-| `AI_INSIGHT_AUTH__JWKS_URL` | `<issuer>/protocol/openid-connect/certs` | Key material |
+| `AI_INSIGHT_AUTH__ISSUER` | **required** | Expected `iss`: the guard's `<publicUrl>/` (or another issuer, such as a Keycloak realm URL) |
+| `AI_INSIGHT_AUTH__JWKS_URL` | **required** | Key material: the guard's `<publicUrl>/.well-known/jwks.json` (a Keycloak realm's is `<realm URL>/protocol/openid-connect/certs`). Without the issuer or the JWKS URL every call answers 503 |
 | `AI_INSIGHT_AUTH__AUDIENCE` | unset (local only) | `aud` check. **Required outside local dev**: without it, any access token of the issuer is accepted regardless of the client it was minted for (cross-client replay). Set it to the AI Insight client id (with a Keycloak issuer, through an audience mapper) |
 | `AI_INSIGHT_AUTH__JWKS_TTL_SECONDS` | `300` | JWKS cache TTL |
-| `AI_INSIGHT_AUTH__ROLES_CLAIM` | `realm_access.roles` | Dot path of the roles claim in the verified token. `realm_access.roles` is the Keycloak layout; set `roles` for tokens of the guard |
+| `AI_INSIGHT_AUTH__ROLES_CLAIM` | `roles` | Dot path of the roles claim in the verified token: `roles` for the guard's tokens; `realm_access.roles` for a Keycloak issuer |
 | `AI_INSIGHT_POLICY__REQUIRED_ROLES` | `["administrator","data_scientist","data_analyst"]` | At least one of these roles is required (the AI Insight roles of the credential schemas) |
 
 Deploy prerequisite: legitimate consumers (dashboards, service accounts) must
@@ -56,6 +56,8 @@ present a token of the configured issuer whose roles claim includes one of the
 required roles — with Keycloak, assign the realm role to the relevant
 clients/service accounts; with the guard, the role comes from the role credential. The old `x-user-roles` header is ignored; the
 `x-agreement-id` / `x-asset-id` headers remain as **request scope** only.
+
+**Upgrading from the Keycloak defaults.** Until this change the issuer and the JWKS URL defaulted to the Keycloak realm (`FACIS_KEYCLOAK_URL` and its `/protocol/openid-connect/certs`), the roles claim to `realm_access.roles` and the required role to `ai_insight_consumer`. Before deploying, set `AI_INSIGHT_AUTH__ISSUER` and `AI_INSIGHT_AUTH__JWKS_URL`: with the guard, its issuer and JWKS (and keep the default roles claim); to stay on a Keycloak realm for now, its URL and certs, plus `AI_INSIGHT_AUTH__ROLES_CLAIM=realm_access.roles`.
 
 **Upgrading from the former default role.** Until this change the default required role was `ai_insight_consumer`, a realm role. Before deploying, give the users and service accounts one of `administrator`, `data_scientist` or `data_analyst` at the token issuer (with Keycloak: create the realm roles and assign them), or keep the former behaviour for now with `AI_INSIGHT_POLICY__REQUIRED_ROLES='["ai_insight_consumer"]'` on the ORCE pod. Otherwise every insight request answers 403.
 

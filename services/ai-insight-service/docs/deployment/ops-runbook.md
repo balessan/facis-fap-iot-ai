@@ -182,6 +182,8 @@ extraVolumeMounts:
     readOnly: true
 ```
 
+**Upgrading from the Keycloak defaults.** Until this change the issuer and the JWKS URL defaulted to the Keycloak realm (`FACIS_KEYCLOAK_URL` and its `/protocol/openid-connect/certs`), the roles claim to `realm_access.roles` and the required role to `ai_insight_consumer`. Before deploying, set `AI_INSIGHT_AUTH__ISSUER` and `AI_INSIGHT_AUTH__JWKS_URL`: with the guard, its issuer and JWKS (and keep the default roles claim); to stay on a Keycloak realm for now, its URL and certs, plus `AI_INSIGHT_AUTH__ROLES_CLAIM=realm_access.roles`.
+
 **Upgrading from the former default role.** Until this change the default required role was `ai_insight_consumer`, a realm role. Before deploying, give the users and service accounts one of `administrator`, `data_scientist` or `data_analyst` at the token issuer (with Keycloak: create the realm roles and assign them), or keep the former behaviour for now with `AI_INSIGHT_POLICY__REQUIRED_ROLES='["ai_insight_consumer"]'` on the ORCE pod. Otherwise every insight request answers 403.
 
 

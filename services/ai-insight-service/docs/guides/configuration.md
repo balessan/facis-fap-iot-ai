@@ -86,7 +86,8 @@ Important defaults from `config/default.yaml`:
 
 ### Policy and Rate Limiting
 
-- `AI_INSIGHT_AUTH__ROLES_CLAIM` — dot path of the roles claim in the verified token; default `realm_access.roles` (Keycloak), `roles` for the guard's tokens
+- `AI_INSIGHT_AUTH__ISSUER`, `AI_INSIGHT_AUTH__JWKS_URL` — required: the token issuer and its JWKS (the guard: `<publicUrl>/` and `<publicUrl>/.well-known/jwks.json`)
+- `AI_INSIGHT_AUTH__ROLES_CLAIM` — dot path of the roles claim in the verified token; default `roles` (the guard's tokens), `realm_access.roles` for a Keycloak issuer
 
 - `AI_INSIGHT_POLICY__ENABLED`
 - `AI_INSIGHT_POLICY__AGREEMENT_HEADER`

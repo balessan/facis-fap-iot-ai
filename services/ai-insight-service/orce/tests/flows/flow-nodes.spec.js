@@ -46,23 +46,46 @@ async function verify(claims, env) {
     return r.sent[0];
 }
 
-test("verifier node: default roles claim is realm_access.roles", async () => {
-    const m = await verify({ realm_access: { roles: ["data_analyst"] }, roles: ["administrator"] });
+test("verifier node: default roles claim is the top-level roles (guard tokens), strings only", async () => {
+    const m = await verify({ realm_access: { roles: ["data_analyst"] }, roles: ["data_scientist", 7] });
     assert.equal(m.authRejected, false);
-    assert.deepEqual([...m.identity.roles], ["data_analyst"]);
-});
-
-test("verifier node: AI_INSIGHT_AUTH__ROLES_CLAIM=roles reads top-level roles, strings only", async () => {
-    const m = await verify({ realm_access: { roles: ["data_analyst"] }, roles: ["data_scientist", 7] }, { AI_INSIGHT_AUTH__ROLES_CLAIM: "roles" });
     assert.deepEqual([...m.identity.roles], ["data_scientist"]);
 });
 
+test("verifier node: AI_INSIGHT_AUTH__ROLES_CLAIM=realm_access.roles reads Keycloak realm roles", async () => {
+    const m = await verify({ realm_access: { roles: ["data_analyst"] }, roles: ["administrator"] }, { AI_INSIGHT_AUTH__ROLES_CLAIM: "realm_access.roles" });
+    assert.deepEqual([...m.identity.roles], ["data_analyst"]);
+});
+
 test("verifier node: a roles claim that is missing or not a list gives no roles", async () => {
-    let m = await verify({ roles: "administrator" }, { AI_INSIGHT_AUTH__ROLES_CLAIM: "roles" });
+    let m = await verify({ roles: "administrator" });
     assert.deepEqual([...m.identity.roles], []);
     m = await verify({}, { AI_INSIGHT_AUTH__ROLES_CLAIM: "a.b.c" });
     assert.equal(m.authRejected, false);
     assert.deepEqual([...m.identity.roles], []);
+});
+
+async function prep(env, claims) {
+    const r = await runNode(path.join(FLOWS, "ai-insight-auth.json"), "fn_auth_prep", {
+        env: env, globalCtx: new Map(),
+        msg: { req: { headers: { authorization: "Bearer " + await token(claims || {}) } }, payload: {} },
+    });
+    return r.result;
+}
+
+test("token prep node: without AI_INSIGHT_AUTH__ISSUER or __JWKS_URL every call fails closed (503)", async () => {
+    for (const env of [{}, { AI_INSIGHT_AUTH__ISSUER: ISSUER }, { AI_INSIGHT_AUTH__JWKS_URL: "https://issuer.example.org/.well-known/jwks.json" }]) {
+        const out = await prep(env);
+        const m = out.find((x) => x);
+        assert.equal(m.statusCode, 503, JSON.stringify(env));
+        assert.match(m.payload.detail, /AI_INSIGHT_AUTH__ISSUER and AI_INSIGHT_AUTH__JWKS_URL/);
+        assert.equal(m.authRejected, true);
+    }
+});
+
+test("token prep node: with both set, the JWKS is fetched from the configured URL only", async () => {
+    const out = await prep({ AI_INSIGHT_AUTH__ISSUER: ISSUER, AI_INSIGHT_AUTH__JWKS_URL: "https://issuer.example.org/.well-known/jwks.json" });
+    assert.equal(out[1].url, "https://issuer.example.org/.well-known/jwks.json");
 });
 
 const GATES = [

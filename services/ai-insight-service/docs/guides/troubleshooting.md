@@ -179,7 +179,7 @@
 
 **The symptom:** Request returns 403 Forbidden with `detail: "Policy denied: none of the required roles (...)"`.
 
-**The cause:** The verified token carries none of the required roles. Roles are read from the token's claims only, never from a header. By default, one of `administrator`, `data_scientist` or `data_analyst` is required. The roles are read from the claim named by `AI_INSIGHT_AUTH__ROLES_CLAIM` (`realm_access.roles` by default, `roles` for the guard's tokens).
+**The cause:** The verified token carries none of the required roles. Roles are read from the token's claims only, never from a header. By default, one of `administrator`, `data_scientist` or `data_analyst` is required. The roles are read from the claim named by `AI_INSIGHT_AUTH__ROLES_CLAIM` (`roles` by default, as the guard issues them; `realm_access.roles` for a Keycloak issuer).
 
 **The fix:**
 1. Give the user or client the required role at the token issuer, then get a new token:
