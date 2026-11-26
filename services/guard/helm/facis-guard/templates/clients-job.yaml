@@ -11,6 +11,7 @@
       "redirect_uris" $redirects
       "post_logout_redirect_uris" (default list .postLogoutRedirectUris)
       "audience" (default list .audience)
+      "allowed_cors_origins" (default list .allowedCorsOrigins)
       "token_endpoint_auth_method" "none"
       "skip_consent" false) }}
 {{- end }}

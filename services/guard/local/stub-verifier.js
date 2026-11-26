@@ -10,6 +10,8 @@
 //   POST /stub/present  {state, roles, org_did, issuer, holder, purposes,
 //                        revoked, tamper: "nonce"|"audience"|"holder"}
 //        stores a presentation (JWT VP with one role credential) as verified
+//   GET  /stub/pending  the latest request not presented yet ({state}), for a
+//        login opened in a browser (present.sh)
 //   GET  /status/list-1 the status list of the stub credentials ({"list": ...})
 //   GET  /healthz
 // Node.js 18+, no dependencies.
@@ -91,6 +93,11 @@ http.createServer(async (req, res) => {
             nonce: b.tamper === 'nonce' ? 'another-nonce' : r.nonce, iat: now, vp: { holder, verifiableCredential: [vc] } });
         r.record = { presentationId: b.state, requestId: r.requestId, status: 'presentation-received', presentation: { role: [vp] } };
         return send(res, 200, { stored: true, statusListIndex: index });
+    }
+    if (req.method === 'GET' && p === '/stub/pending') {
+        const pending = [...requests.entries()].filter(([, r]) => !r.record);
+        if (pending.length === 0) return send(res, 404, { error: 'no pending request' });
+        return send(res, 200, { state: pending[pending.length - 1][0] });
     }
     if (req.method === 'GET' && p === '/status/list-1') {
         const bytes = Buffer.alloc(16384);

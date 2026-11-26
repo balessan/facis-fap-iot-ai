@@ -13,6 +13,17 @@ data:
     serve:
       public:
         port: 4444
+        {{- $origins := list }}
+        {{- range .Values.clients }}{{ range (default list .allowedCorsOrigins) }}{{ $origins = append $origins . }}{{ end }}{{ end }}
+        {{- if $origins }}
+        # Browser applications call the token endpoint from their own origin.
+        cors:
+          enabled: true
+          allowed_origins: {{ $origins | uniq | toJson }}
+          allowed_methods: ["GET", "POST", "OPTIONS"]
+          allowed_headers: ["Authorization", "Content-Type"]
+          allow_credentials: false
+        {{- end }}
       admin:
         port: 4445
       cookies:

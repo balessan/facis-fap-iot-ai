@@ -108,6 +108,11 @@ allowed for the application, wrong nonce and another holder's credential are ref
 refusals lock the address out and an administrator lifts it; the admin APIs are not routed.
 `e2e.sh --token <role>` prints one access token, for testing an application locally.
 
+To log in to an application from a browser against the local guard (for example the AI Insight
+UI on its Vite dev server, `http://localhost:3000/orce/aiInsight/`, which `values-local.yaml`
+registers), open the application: the guard's login page appears and waits; then run
+`services/guard/local/present.sh <role>` to present a test role credential in place of a wallet.
+
 The stub verifier signs and verifies nothing: the end-to-end check proves the guard's own logic
 and wiring, not the W-Stack. The same scripts run against a real verifier and a wallet:
 

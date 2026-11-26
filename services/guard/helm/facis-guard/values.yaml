@@ -66,6 +66,9 @@ clients: []
 #    redirectUris: [https://fap-iotai.example.org/orce/aiInsight/]
 #    postLogoutRedirectUris: [https://fap-iotai.example.org/orce/aiInsight/]
 #    audience: [facis-ai-insight]
+#    # browser applications that call the token endpoint themselves (code + PKCE
+#    # in the browser) list their origin; it enables CORS for those origins only
+#    allowedCorsOrigins: [https://fap-iotai.example.org]
 
 clientRegistration:
   # Image with curl and jq (the DSP connector chart uses the same one).
