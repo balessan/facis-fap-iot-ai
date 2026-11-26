@@ -6,6 +6,10 @@
 # Usage: services/guard/local/up.sh            (from the repo root)
 # Env:   KUBE_CONTEXT  kubectl context (default: the current one)
 #        NAMESPACE     default guard-local
+#        EXTRA_VALUES  extra values files for the chart, space separated (for
+#                      example to point the login provider at a real verifier)
+#        POLICY_DATA   directory of the policy deployment data (default: policy-data,
+#                      which trusts the stub issuer)
 # Needs: kubectl, helm, opa, openssl.
 # Leaves `kubectl port-forward` to the edge running in the background:
 # the guard is at http://localhost:8444. down.sh removes everything.
@@ -40,8 +44,8 @@ if ! k get secret guard-postgres-local >/dev/null 2>&1; then
     echo "   secrets created"
 fi
 
-echo "== policy bundle: infrastructure/opa/bundle + local deployment data"
-opa build "${repo}/infrastructure/opa/bundle" "${here}/policy-data" -o "${work}/bundle.tar.gz"
+echo "== policy bundle: infrastructure/opa/bundle + deployment data ${POLICY_DATA:-${here}/policy-data}"
+opa build "${repo}/infrastructure/opa/bundle" "${POLICY_DATA:-${here}/policy-data}" -o "${work}/bundle.tar.gz"
 k create configmap guard-policy-bundle-local --from-file=bundle.tar.gz="${work}/bundle.tar.gz" --dry-run=client -o yaml | k apply -f -
 
 echo "== stub verifier and edge proxy"
@@ -50,9 +54,11 @@ k apply -f "${here}/manifests.yaml"
 k rollout restart deployment/guard-stub-verifier >/dev/null
 
 echo "== chart"
+extra=()
+for f in ${EXTRA_VALUES:-}; do [ -f "${f}" ] || { echo "no such values file: ${f}" >&2; exit 2; }; extra+=(-f "${f}"); done
 "${repo}/services/guard/helm/facis-guard/sync-flows.sh" >/dev/null
 helm --kube-context "${ctx}" -n "${ns}" upgrade --install guard "${repo}/services/guard/helm/facis-guard" \
-    -f "${here}/values-local.yaml" --set networkPolicy.ingressNamespace="${ns}" --wait --timeout 10m
+    -f "${here}/values-local.yaml" ${extra[@]+"${extra[@]}"} --set networkPolicy.ingressNamespace="${ns}" --wait --timeout 10m
 k rollout restart deployment/guard-edge >/dev/null
 k rollout status deployment/guard-edge --timeout 120s >/dev/null
 

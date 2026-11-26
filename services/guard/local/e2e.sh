@@ -17,6 +17,13 @@
 #        services/guard/local/e2e.sh --token ROLE [CLIENT]
 #                                   print one access token (for other local tests)
 # Env:   BASE (default http://localhost:8444), KUBE_CONTEXT, NAMESPACE (as up.sh)
+#        PRESENT_CMD   present through a wallet instead of the stub verifier:
+#                      called as  $PRESENT_CMD <openid4vp-link> <case-json>
+#                      (case: roles, revoked, issuer, tamper...); exit 0 when it
+#                      presented, 3 when it cannot play that case (skipped)
+#        E2E_ISSUER, E2E_ORG, E2E_HOLDER   the credential's issuer, organisation
+#                      and holder DID (defaults: the stub's); with PRESENT_CMD
+#                      and no E2E_HOLDER, the subject is only checked to be a DID
 # Needs: curl, jq, openssl, opa, kubectl.
 set -euo pipefail
 
@@ -24,11 +31,13 @@ BASE="${BASE:-http://localhost:8444}"
 ns="${NAMESPACE:-guard-local}"
 ctx="${KUBE_CONTEXT:-$(kubectl config current-context)}"
 REDIRECT="${BASE}/callback"
-ISSUER_DID=did:web:issuer.local.test
-ORG=did:web:org-a.local.test
-HOLDER=did:key:z6MkLocalTestHolder
+ISSUER_DID="${E2E_ISSUER:-did:web:issuer.local.test}"
+ORG="${E2E_ORG:-did:web:org-a.local.test}"
+HOLDER="${E2E_HOLDER:-$([ -n "${PRESENT_CMD:-}" ] || echo did:key:z6MkLocalTestHolder)}"
+STUB=$([ -n "${PRESENT_CMD:-}" ] || echo 1)
 work="$(mktemp -d)"; trap 'rm -rf "${work}"; [ -n "${pf:-}" ] && kill "${pf}" 2>/dev/null || true' EXIT
-pass=0; fail=0
+pass=0; fail=0; skipped=0
+skip() { echo "  skip  $1"; skipped=$((skipped + 1)); }
 ok()  { echo "  ok    $1"; pass=$((pass + 1)); }
 bad() { echo "  FAIL  $1"; fail=$((fail + 1)); }
 for t in curl jq openssl opa kubectl; do command -v "$t" >/dev/null || { echo "missing: $t" >&2; exit 2; }; done
@@ -57,8 +66,15 @@ login() {
     link="$(grep -o 'href="openid4vp://[^"]*"' <<<"${html}" | head -1 | cut -d'"' -f2 | sed 's/&amp;/\&/g')"
     state="$(urldecode "$(sed -n 's/.*request_uri=\([^&]*\).*/\1/p' <<<"${link}")" | sed -n 's#.*/proof/\([^/]*\)/request-object.*#\1#p')"
     [ -n "${id}" ] && [ -n "${state}" ] || { LOGIN_STATE="page-unreadable"; return 0; }
-    curl -sf -o /dev/null -X POST -H 'content-type: application/json' "${BASE}/stub/present" \
-        -d "$(jq -c --arg s "${state}" '. + {state: $s}' <<<"${present}")"
+    if [ -n "${STUB}" ]; then
+        curl -sf -o /dev/null -X POST -H 'content-type: application/json' "${BASE}/stub/present" \
+            -d "$(jq -c --arg s "${state}" '. + {state: $s}' <<<"${present}")"
+    else
+        local rc=0
+        "${PRESENT_CMD}" "${link}" "${present}" || rc=$?
+        [ "${rc}" = 3 ] && { LOGIN_STATE=unsupported; return 0; }
+        [ "${rc}" = 0 ] || { LOGIN_STATE="wallet-failed-${rc}"; return 0; }
+    fi
     for _ in $(seq 1 20); do
         s="$(curl -s "${BASE}/guard/login/status?attempt=${id}")"
         LOGIN_STATE="$(jq -r .state <<<"${s}")"
@@ -101,13 +117,25 @@ if [ "${LOGIN_STATE}" = done ] && [ -n "${CODE}" ]; then
     v="$(opa eval -I --format raw 'io.jwt.decode_verify(input.t, {"cert": input.jwks, "iss": "http://localhost:8444/", "aud": "facis-ai-insight"})' < "${work}/in.json")"
     [ "$(jq -r '.[0]' <<<"${v}")" = true ] && ok "access token signature, issuer and audience verified against the JWKS" || bad "access token does not verify: ${v}"
     p="$(jq '.[2]' <<<"${v}")"
-    [ "$(jq -r .sub <<<"${p}")" = "${HOLDER}" ] && ok "subject is the holder DID" || bad "sub $(jq -r .sub <<<"${p}")"
-    [ "$(jq -c '{org_did, roles, purpose}' <<<"${p}")" = "{\"org_did\":\"${ORG}\",\"roles\":[\"data_analyst\"],\"purpose\":[\"analytics\",\"ai_insight\"]}" ] \
+    if [ -n "${HOLDER}" ]; then
+        [ "$(jq -r .sub <<<"${p}")" = "${HOLDER}" ] && ok "subject is the holder DID" || bad "sub $(jq -r .sub <<<"${p}")"
+    else
+        jq -e '.sub | startswith("did:")' >/dev/null <<<"${p}" && ok "subject is a DID ($(jq -r .sub <<<"${p}"))" || bad "sub $(jq -r .sub <<<"${p}")"
+    fi
+    jq -e --arg o "${ORG}" '.org_did == $o and .roles == ["data_analyst"] and (.purpose | type) == "array"' >/dev/null <<<"${p}" \
         && ok "org_did, roles and purpose at the top level, from the credential" || bad "claims $(jq -c . <<<"${p}")"
+    if [ -n "${STUB}" ]; then
+        jq -e '.purpose == ["analytics", "ai_insight"]' >/dev/null <<<"${p}" && ok "purposes as presented" || bad "purpose $(jq -c .purpose <<<"${p}")"
+    fi
     [ "$(jq '.exp - .iat' <<<"${p}")" -le 300 ] && ok "access token lives 5 minutes" || bad "lifetime $(jq '.exp - .iat' <<<"${p}")s"
     it="$(jwt_payload "$(jq -r .id_token <<<"${tr}")")"
-    jq -e '.name == "Local Test" and .email == "local.test@example.org" and .roles == ["data_analyst"]' >/dev/null 2>&1 <<<"${it}" \
-        && ok "ID token carries name, email and the roles" || bad "ID token claims ${it}"
+    if [ -n "${STUB}" ]; then
+        jq -e '.name == "Local Test" and .email == "local.test@example.org" and .roles == ["data_analyst"]' >/dev/null 2>&1 <<<"${it}" \
+            && ok "ID token carries name, email and the roles" || bad "ID token claims ${it}"
+    else
+        jq -e '(.name | type) == "string" and .roles == ["data_analyst"]' >/dev/null 2>&1 <<<"${it}" \
+            && ok "ID token carries the name and the roles" || bad "ID token claims ${it}"
+    fi
     jq -e 'has("name") | not' >/dev/null <<<"${p}" && ok "name and email stay out of the access token" || bad "display claims in the access token"
 else
     bad "valid presentation not accepted (${LOGIN_STATE})"
@@ -116,8 +144,10 @@ fi
 echo "== 2. refusals (each one counts toward the lockout)"
 check_refused() { # name client roles-json [extra-json]
     login "$2" "$(present "$3" "${4:-}")"
-    [ "${LOGIN_STATE}" = refused ] && [ -z "${CODE}" ] && ok "$1 -> refused" || bad "$1 -> ${LOGIN_STATE}"
+    if [ "${LOGIN_STATE}" = unsupported ]; then skip "$1 (the wallet cannot play this case)"; return 0; fi
+    [ "${LOGIN_STATE}" = refused ] && [ -z "${CODE}" ] && { ok "$1 -> refused"; refusals=$((refusals + 1)); } || bad "$1 -> ${LOGIN_STATE}"
 }
+refusals=0
 check_refused "revoked credential" facis-ai-insight-ui '["data_analyst"]' '{"revoked": true}'
 check_refused "issuer not trusted" facis-ai-insight-ui '["data_analyst"]' '{"issuer": "did:web:untrusted.local.test"}'
 check_refused "role not allowed for the application" facis-ai-insight-ui '["operator"]'
@@ -125,6 +155,9 @@ check_refused "wrong nonce" facis-ai-insight-ui '["data_analyst"]' '{"tamper": "
 check_refused "credential of another holder" facis-ai-insight-ui '["data_analyst"]' '{"tamper": "holder"}'
 
 echo "== 3. lockout"
+if [ "${refusals}" -lt 5 ]; then
+    skip "lockout: only ${refusals} refusals could be played"
+else
 login facis-ai-insight-ui "$(present '["data_analyst"]')"
 [ "${LOGIN_STATE}" = page-429 ] && ok "after five refusals the next login is paused (429)" || bad "no lockout (${LOGIN_STATE})"
 kubectl --context "${ctx}" -n "${ns}" get secret guard-login-local -o jsonpath='{.data.admin-token}' | base64 -d > "${work}/admin"
@@ -137,11 +170,12 @@ for key in ${keys}; do curl -s -o /dev/null -X DELETE -H @<(printf '%s' "${ah}")
 [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18800/guard/admin/lockouts)" = 401 ] && ok "lockout endpoints need the admin token" || bad "lockout endpoints open"
 login facis-ai-insight-ui "$(present '["data_analyst"]')"
 [ "${LOGIN_STATE}" = done ] && ok "lockout lifted, login works again" || bad "after lifting: ${LOGIN_STATE}"
+fi
 
 echo "== 4. edge cases"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=%3Cbad%3E")" = 400 ] && ok "malformed login challenge -> 400" || bad "malformed challenge accepted"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/admin/clients")" = 404 ] && ok "authorization server admin API not routed" || bad "admin API reachable from outside"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/admin/lockouts")" = 404 ] && ok "lockout endpoints not routed" || bad "lockout endpoints reachable from outside"
 
-echo; echo "${pass} passed, ${fail} failed"
+echo; echo "${pass} passed, ${fail} failed, ${skipped} skipped"
 [ "${fail}" = 0 ]

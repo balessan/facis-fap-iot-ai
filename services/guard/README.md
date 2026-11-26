@@ -109,5 +109,11 @@ refusals lock the address out and an administrator lifts it; the admin APIs are 
 `e2e.sh --token <role>` prints one access token, for testing an application locally.
 
 The stub verifier signs and verifies nothing: the end-to-end check proves the guard's own logic
-and wiring, not the W-Stack. Against a real verifier, set `loginProvider.verifier.*` and
-`loginProvider.statusListOrigins` to it and present from a wallet.
+and wiring, not the W-Stack. The same scripts run against a real verifier and a wallet:
+
+| Setting | For |
+|---|---|
+| `EXTRA_VALUES=<file>` (up.sh) | values pointing `loginProvider.verifier.*` and `loginProvider.statusListOrigins` at the real verifier and issuer; `loginProvider.caBundle` when they use a private CA |
+| `POLICY_DATA=<dir>` (up.sh) | deployment data trusting the real issuer and its organisations |
+| `PRESENT_CMD=<command>` (e2e.sh) | presents through the wallet: called with the `openid4vp://` link and the case (roles, revoked...); exits 3 for a case the wallet cannot play, which is then skipped |
+| `E2E_ISSUER`, `E2E_ORG`, `E2E_HOLDER` (e2e.sh) | the real credential's issuer, organisation and holder |
