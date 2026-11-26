@@ -503,3 +503,99 @@ test('lockout: a lockout in force is not lifted by a login of another attempt', 
     await run(c, 'guard-login-accepted', acc);
     assert.ok(c.flowCtx.get('guardLockouts')['holder:' + HOLDER].until > Date.now());
 });
+
+// --- SD-JWT VC presentations (dc+sd-jwt, with key binding) -------------------------
+
+const nodeCrypto = require('node:crypto');
+function sdJwtPresentation(opts) {
+    opts = opts || {};
+    const holderKey = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const jwk = holderKey.publicKey.export({ format: 'jwk' });
+    const signKey = opts.kbKey || holderKey.privateKey;
+    const disc = (arr) => Buffer.from(JSON.stringify(arr)).toString('base64url');
+    const dig = (d) => nodeCrypto.createHash('sha256').update(d, 'ascii').digest('base64url');
+    const roles = opts.roles || ['data_analyst'];
+    const roleDiscs = roles.map((r) => disc([nodeCrypto.randomBytes(8).toString('hex'), r]));
+    const claimDiscs = {
+        org_did: disc(['s1', 'org_did', ORG]),
+        roles: disc(['s2', 'roles', roleDiscs.map((d) => ({ '...': dig(d) }))]),
+        name: disc(['s3', 'name', 'Test Person']),
+        email: disc(['s4', 'email', 'person@example.org']),
+        purposes: disc(['s5', 'purposes', ['analytics']])
+    };
+    const issuerPayload = Object.assign({
+        iss: ISSUER, vct: 'FapIotAiRoleCredential', iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600,
+        cnf: { jwk }, _sd_alg: 'sha-256', _sd: Object.values(claimDiscs).map(dig),
+        status: { status_list: { idx: 5, uri: 'https://status.example.org/v1/tenants/fap/status/list-1' } }
+    }, opts.issuer || {});
+    const ijwt = jwt(issuerPayload);
+    const discs = Object.values(claimDiscs).concat(roleDiscs).concat(opts.extraDisclosures || []);
+    const presented = ijwt + '~' + discs.map((d) => d + '~').join('');
+    const kbPayload = Object.assign({ nonce: 'nonce-1', aud: VERIFIER_CLIENT, iat: Math.floor(Date.now() / 1000), sd_hash: dig(presented) }, opts.kb || {});
+    const head = b64u({ alg: 'ES256', typ: 'kb+jwt' }) + '.' + b64u(kbPayload);
+    const sig = nodeCrypto.sign('sha256', Buffer.from(head), { key: signKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
+    const holder = 'did:jwk:' + Buffer.from(JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y })).toString('base64url');
+    return { compact: presented + head + '.' + sig, holder };
+}
+
+test('SD-JWT VC: a valid presentation gives the disclosed claims and the bound key as holder', async () => {
+    const c = await configured();
+    const s = await startLogin(c);
+    const sd = sdJwtPresentation({ roles: ['data_analyst', 'operator'] });
+    const p = await poll(c, s.id, record(sd.compact));
+    assert.ok(p.next, JSON.stringify(p.refused && p.refused._guard.refusal));
+    assert.equal(p.next._guard.holder, sd.holder);
+    deq(p.next._guard.credential.roles, ['data_analyst', 'operator']);
+    assert.equal(p.next._guard.credential.org_did, ORG);
+    assert.equal(p.next._guard.credential.issuer, ISSUER);
+    assert.equal(p.next._guard.credential.name, 'Test Person');
+    assert.equal(p.next._guard.statusIndex, 5);
+    assert.equal(p.next.url, 'https://status.example.org/v1/tenants/fap/status/list-1');
+});
+
+const sdRefusals = [
+    ['wrong nonce in the key binding', { kb: { nonce: 'other' } }, 'nonce'],
+    ['wrong audience in the key binding', { kb: { aud: 'did:web:someone-else' } }, 'audience'],
+    ['key binding over other disclosures', { kb: { sd_hash: 'AAAA' } }, 'cover the presented disclosures'],
+    ['key binding signed by another key', { kbKey: nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey }, 'not signed by the holder key'],
+    ['a disclosure the issuer did not commit to', { extraDisclosures: [Buffer.from(JSON.stringify(['x', 'roles', ['administrator']])).toString('base64url')] }, 'not committed'],
+    ['no bound holder key', { issuer: { cnf: undefined } }, 'binds no holder key'],
+    ['expired credential', { issuer: { exp: 1000 } }, 'expired'],
+    ['subject that is not the bound key', { issuer: { sub: 'did:key:z6MkSomeoneElse' } }, 'not the bound key']
+];
+for (const [name, opts, reason] of sdRefusals) {
+    test('SD-JWT VC: refused — ' + name, async () => {
+        const c = await configured();
+        const s = await startLogin(c);
+        const p = await poll(c, s.id, record(sdJwtPresentation(opts).compact));
+        assert.ok(p.refused, 'expected a refusal');
+        assert.ok(p.refused._guard.refusal.reason.includes(reason), p.refused._guard.refusal.reason);
+    });
+}
+
+test('SD-JWT VC: no key-binding JWT is refused', async () => {
+    const c = await configured();
+    const s = await startLogin(c);
+    const compact = sdJwtPresentation().compact;
+    const p = await poll(c, s.id, record(compact.slice(0, compact.lastIndexOf('~') + 1)));
+    assert.ok(p.refused._guard.refusal.reason.includes('no key binding'));
+});
+
+test('status: a presentation the verifier rejected ends the attempt at once', async () => {
+    const c = await configured();
+    const s = await startLogin(c);
+    const p = await poll(c, s.id, { status: 'presentation-rejected', error: 'verified presentation not yet available' }, 409);
+    assert.ok(p.refused, 'refused');
+    assert.ok(p.refused._guard.refusal.reason.includes('rejected by the verifier'));
+});
+
+test('status list: one media type is asked, the configured one', async () => {
+    let c = await configured();
+    let s = await startLogin(c);
+    let p = await poll(c, s.id, record(vpJwt()));
+    assert.equal(p.next.headers.accept, 'application/vnd.xfsc.status-list');
+    c = await configured({ GUARD_STATUS_LIST_ACCEPT: 'application/statuslist+jwt' });
+    s = await startLogin(c);
+    p = await poll(c, s.id, record(vpJwt()));
+    assert.equal(p.next.headers.accept, 'application/statuslist+jwt');
+});

@@ -39,6 +39,7 @@ data:
   GUARD_STATUS_LIST_ORIGINS: {{ join "," $lp.statusListOrigins | quote }}
   GUARD_WEB_WALLETS: {{ toJson $lp.webWallets | quote }}
   GUARD_ATTEMPT_TTL_SECONDS: {{ $lp.attemptTtlSeconds | quote }}
+  GUARD_STATUS_LIST_ACCEPT: {{ $lp.statusListAccept | quote }}
   GUARD_LOCKOUT_MAX_FAILURES: {{ $lp.lockout.maxFailures | quote }}
   GUARD_LOCKOUT_WINDOW_SECONDS: {{ $lp.lockout.windowSeconds | quote }}
   GUARD_LOCKOUT_SECONDS: {{ $lp.lockout.seconds | quote }}

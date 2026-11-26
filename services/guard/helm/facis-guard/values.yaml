@@ -127,6 +127,10 @@ loginProvider:
   # -- Web wallets the login page can redirect to: [{name, url}], url with
   #    {openid4vp} or {request_uri} (and optionally {client_id}).
   webWallets: []
+  # -- Media type asked of the status list services (one only). The W-Stack's
+  #    own list is the default: its token status list (statuslist+jwt) carries
+  #    the bits in the W3C order, not the order that format defines.
+  statusListAccept: application/vnd.xfsc.status-list
   attemptTtlSeconds: 300
   lockout:
     maxFailures: 5
