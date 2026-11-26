@@ -24,6 +24,28 @@ own revision (`tag: main` in its values), so an Argo CD install follows that
 branch, not this file. Use the lock to check what runs (`--cluster`), to
 notice when the published tags move (`--registry`), and as the list to mirror.
 
+## Status of this baseline
+
+The pinned versions are the latest ones we know of, not a release agreed for a
+running installation. They come from `deployment` commit `55e28aa`, the
+revision the FAP's presentation flows were tested against. No Easy Stack
+Builder (ESB) installation of the W-Stack runs on a FACIS cluster yet, so the
+lock has not been checked against one.
+
+The ESB OCM-WStack node may install another revision. The latest public node we
+know of, 12.6.4, installs `deployment` commit `c1ba65c`, whose verifier
+(`credential-verification-service` 1.2.2-alpha) is below the constraint in the
+next section.
+
+Revise the baseline once an ESB installation is available and working:
+
+1. Read the `deployment` revision it installs (the `argoRevision` of the node's
+   `upstream-lock.json`, or the revision of its Argo CD applications).
+2. Regenerate the lock from that revision (see [Updating](#updating)).
+3. Check the installation: `check-baseline.py --cluster <namespace>`.
+4. If the verifier is below 1.3.0, either upgrade it in that installation or
+   adapt the FAP's presentation client and its constraint below.
+
 ## Required components
 
 | Image | Constraint |
