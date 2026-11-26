@@ -20,11 +20,13 @@ infrastructure/
 │   ├── values-kube-prometheus.yaml    kube-prometheus-stack values
 │   └── alerts/
 │       └── facis-alerts.yaml          PrometheusRule (FACIS alerts)
-└── orce/
-    ├── init-deps-patch.yaml           initContainer: npm deps + rdkafka SSL
-    ├── kafka-certs-patch.yaml         volume mount: /etc/kafka-certs
-    ├── kafka-broker-watcher-cronjob.yaml   NodePort drift detection
-    └── kafka-cert-expiry-cronjob.yaml      mTLS cert expiry monitoring
+├── orce/
+│   ├── init-deps-patch.yaml           initContainer: npm deps + rdkafka SSL
+│   ├── kafka-certs-patch.yaml         volume mount: /etc/kafka-certs
+│   ├── kafka-broker-watcher-cronjob.yaml   NodePort drift detection
+│   └── kafka-cert-expiry-cronjob.yaml      mTLS cert expiry monitoring
+└── wstack/                            OCM W-Stack baseline: lock of charts and
+                                       images by digest, checks (see its README)
 ```
 
 ## When to put a resource here vs in a Helm chart
