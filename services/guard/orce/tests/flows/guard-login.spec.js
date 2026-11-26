@@ -452,3 +452,19 @@ test('error landing: the authorization server error is shown escaped, never as m
     assert.ok(r.result.payload.includes('&lt;script&gt;x&lt;/script&gt; refused (access_denied)'));
     assert.ok(!r.result.payload.includes('<script>x'));
 });
+
+test('challenges: the authorization server\'s long challenges are accepted, the alphabet is still checked', async () => {
+    const c = await configured();
+    const long = 'A'.repeat(560) + '-_' + 'b'.repeat(566);   // 1128 characters, as Hydra v26 issues them
+    let r = await run(c, 'guard-login-start', req({ login_challenge: long }));
+    assert.ok(r.result[0], 'long login challenge forwarded');
+    assert.ok(r.result[0].url.endsWith('login_challenge=' + long));
+    r = await run(c, 'guard-consent-start', req({ consent_challenge: long }));
+    assert.ok(r.result[0], 'long consent challenge forwarded');
+    r = await run(c, 'guard-logout-start', req({ logout_challenge: long }));
+    assert.ok(r.result[0], 'long logout challenge forwarded');
+    r = await run(c, 'guard-login-start', req({ login_challenge: 'x'.repeat(4097) }));
+    assert.equal(r.result[1]._guardError.code, 400, 'beyond the upper bound');
+    r = await run(c, 'guard-login-start', req({ login_challenge: long + '"><' }));
+    assert.equal(r.result[1]._guardError.code, 400, 'outside the alphabet');
+});
