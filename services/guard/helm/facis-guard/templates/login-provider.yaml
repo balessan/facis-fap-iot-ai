@@ -52,8 +52,12 @@ metadata:
     {{- include "facis-guard.labels" . | nindent 4 }}
     app.kubernetes.io/component: login-provider
 spec:
-  # Attempts and lockouts are held in memory: one replica.
+  # Attempts and lockouts are held in memory: one replica, and never two at
+  # once. Recreate stops the old pod before the new one starts; a rolling
+  # update would split logins in progress between two pods.
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "facis-guard.selectorLabels" . | nindent 6 }}

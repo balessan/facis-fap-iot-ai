@@ -45,12 +45,12 @@ skip() { echo "  skip  $1"; skipped=$((skipped + 1)); }
 ok()  { echo "  ok    $1"; pass=$((pass + 1)); }
 bad() { echo "  FAIL  $1"; fail=$((fail + 1)); }
 for t in curl jq openssl opa kubectl; do command -v "$t" >/dev/null || { echo "missing: $t" >&2; exit 2; }; done
-curl -sf -o /dev/null "${BASE}/.well-known/openid-configuration" || { echo "the guard does not answer on ${BASE}: run up.sh first" >&2; exit 2; }
+curl -sf --max-time 20 -o /dev/null "${BASE}/.well-known/openid-configuration" || { echo "the guard does not answer on ${BASE}: run up.sh first" >&2; exit 2; }
 
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 jwt_payload() { local p; p="$(cut -d. -f2 <<<"$1" | tr '_-' '/+')"; while [ $(( ${#p} % 4 )) -ne 0 ]; do p="${p}="; done; base64 -d <<<"${p}" 2>/dev/null || true; }
 urldecode() { local s="${1//+/ }"; printf '%b' "${s//%/\\x}"; }
-location() { curl -s -b "${work}/jar" -c "${work}/jar" -o /dev/null -w '%{redirect_url}' "$1"; }
+location() { curl -s --max-time 20 -b "${work}/jar" -c "${work}/jar" -o /dev/null -w '%{redirect_url}' "$1"; }
 
 # login CLIENT PRESENT_JSON -> sets LOGIN_STATE (done|refused|...), CODE, VERIFIER
 login() {
@@ -62,7 +62,7 @@ login() {
     auth="${auth}&scope=openid&audience=facis-ai-insight&state=$(openssl rand -hex 8)&nonce=$(openssl rand -hex 8)"
     auth="${auth}&code_challenge=${challenge}&code_challenge_method=S256"
     url="$(location "${auth}")"
-    LOGIN_HTTP="$(curl -s -b "${work}/jar" -c "${work}/jar" -o "${work}/page.html" -w '%{http_code}' "${url}")"
+    LOGIN_HTTP="$(curl -s --max-time 20 -b "${work}/jar" -c "${work}/jar" -o "${work}/page.html" -w '%{http_code}' "${url}")"
     LOGIN_STATE=""; CODE=""
     [ "${LOGIN_HTTP}" = 200 ] || { LOGIN_STATE="page-${LOGIN_HTTP}"; return 0; }
     html="$(cat "${work}/page.html")"
@@ -71,7 +71,7 @@ login() {
     state="$(urldecode "$(sed -n 's/.*request_uri=\([^&]*\).*/\1/p' <<<"${link}")" | sed -n 's#.*/proof/\([^/]*\)/request-object.*#\1#p')"
     [ -n "${id}" ] && [ -n "${state}" ] || { LOGIN_STATE="page-unreadable"; return 0; }
     if [ -n "${STUB}" ]; then
-        curl -sf -o /dev/null -X POST -H 'content-type: application/json' "${BASE}/stub/present" \
+        curl -sf --max-time 20 -o /dev/null -X POST -H 'content-type: application/json' "${BASE}/stub/present" \
             -d "$(jq -c --arg s "${state}" '. + {state: $s}' <<<"${present}")"
     else
         local rc=0
@@ -80,7 +80,7 @@ login() {
         [ "${rc}" = 0 ] || { LOGIN_STATE="wallet-failed-${rc}"; return 0; }
     fi
     for _ in $(seq 1 20); do
-        s="$(curl -s "${BASE}/guard/login/status?attempt=${id}")"
+        s="$(curl -s --max-time 20 "${BASE}/guard/login/status?attempt=${id}")"
         LOGIN_STATE="$(jq -r .state <<<"${s}")"
         [ "${LOGIN_STATE}" = pending ] || break
         sleep 1
@@ -98,7 +98,7 @@ present() { # roles-json [extra-json]
         '{roles: $r, issuer: $i, org_did: $o, holder: $h, purposes: ["analytics", "ai_insight"]} + $x'
 }
 token() { # client -> token response JSON
-    curl -s -X POST "${BASE}/oauth2/token" -d grant_type=authorization_code --data-urlencode "code=${CODE}" \
+    curl -s --max-time 20 -X POST "${BASE}/oauth2/token" -d grant_type=authorization_code --data-urlencode "code=${CODE}" \
         --data-urlencode "redirect_uri=${REDIRECT}" -d client_id="$1" --data-urlencode "code_verifier=${VERIFIER}"
 }
 
@@ -117,7 +117,7 @@ if [ "${E2E_KEEP_STATE:-}" != 1 ]; then
     # a valid configuration, without asking the authorization server
     up=""
     for _ in $(seq 1 60); do
-        [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=%21")" = 400 ] && { up=1; break; }
+        [ "$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=%21")" = 400 ] && { up=1; break; }
         sleep 2
     done
     [ -n "${up}" ] || { echo "the login provider does not answer after its restart" >&2; exit 1; }
@@ -130,7 +130,7 @@ if [ "${LOGIN_STATE}" = done ] && [ -n "${CODE}" ]; then
     tr="$(token facis-ai-insight-ui)"
     at="$(jq -r .access_token <<<"${tr}")"
     [ "$(jq -r '.refresh_token // empty' <<<"${tr}")" = "" ] && ok "no refresh token" || bad "a refresh token was issued"
-    curl -s "${BASE}/.well-known/jwks.json" > "${work}/jwks.json"
+    curl -s --max-time 20 "${BASE}/.well-known/jwks.json" > "${work}/jwks.json"
     jq -n --arg t "${at}" --slurpfile k "${work}/jwks.json" '{t: $t, jwks: ($k[0] | tostring)}' > "${work}/in.json"
     v="$(opa eval -I --format raw 'io.jwt.decode_verify(input.t, {"cert": input.jwks, "iss": "http://localhost:8444/", "aud": "facis-ai-insight"})' < "${work}/in.json")"
     [ "$(jq -r '.[0]' <<<"${v}")" = true ] && ok "access token signature, issuer and audience verified against the JWKS" || bad "access token does not verify: ${v}"
@@ -183,20 +183,20 @@ login facis-ai-insight-ui "$(present '["data_analyst"]')"
 [ "${LOGIN_STATE}" = page-429 ] && ok "after five refusals the next login is paused (429)" || bad "no lockout (${LOGIN_STATE})"
 kubectl --context "${ctx}" -n "${ns}" get secret guard-login-local -o jsonpath='{.data.admin-token}' | base64 -d > "${work}/admin"
 kubectl --context "${ctx}" -n "${ns}" port-forward svc/guard-login 18800:1880 > /dev/null 2>&1 & pf=$!
-for _ in $(seq 1 20); do curl -s -o /dev/null http://localhost:18800/guard/health && break; sleep 0.5; done
+for _ in $(seq 1 20); do curl -s --max-time 20 -o /dev/null http://localhost:18800/guard/health && break; sleep 0.5; done
 ah="Authorization: Bearer $(cat "${work}/admin")"
-keys="$(curl -s -H @<(printf '%s' "${ah}") http://localhost:18800/guard/admin/lockouts | jq -r '.lockouts[].key')"
+keys="$(curl -s --max-time 20 -H @<(printf '%s' "${ah}") http://localhost:18800/guard/admin/lockouts | jq -r '.lockouts[].key')"
 [ -n "${keys}" ] && ok "lockouts listed: $(tr '\n' ' ' <<<"${keys}" | sed 's/did:key:[^ ]*/<holder>/')" || bad "no lockout listed"
-for key in ${keys}; do curl -s -o /dev/null -X DELETE -H @<(printf '%s' "${ah}") "http://localhost:18800/guard/admin/lockouts?key=$(jq -rn --arg k "${key}" '$k|@uri')"; done
-[ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18800/guard/admin/lockouts)" = 401 ] && ok "lockout endpoints need the admin token" || bad "lockout endpoints open"
+for key in ${keys}; do curl -s --max-time 20 -o /dev/null -X DELETE -H @<(printf '%s' "${ah}") "http://localhost:18800/guard/admin/lockouts?key=$(jq -rn --arg k "${key}" '$k|@uri')"; done
+[ "$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' http://localhost:18800/guard/admin/lockouts)" = 401 ] && ok "lockout endpoints need the admin token" || bad "lockout endpoints open"
 login facis-ai-insight-ui "$(present '["data_analyst"]')"
 [ "${LOGIN_STATE}" = done ] && ok "lockout lifted, login works again" || bad "after lifting: ${LOGIN_STATE}"
 fi
 
 echo "== 4. edge cases"
-[ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=%3Cbad%3E")" = 400 ] && ok "malformed login challenge -> 400" || bad "malformed challenge accepted"
-[ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/admin/clients")" = 404 ] && ok "authorization server admin API not routed" || bad "admin API reachable from outside"
-[ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/guard/admin/lockouts")" = 404 ] && ok "lockout endpoints not routed" || bad "lockout endpoints reachable from outside"
+[ "$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' "${BASE}/guard/login?login_challenge=%3Cbad%3E")" = 400 ] && ok "malformed login challenge -> 400" || bad "malformed challenge accepted"
+[ "$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' "${BASE}/admin/clients")" = 404 ] && ok "authorization server admin API not routed" || bad "admin API reachable from outside"
+[ "$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' "${BASE}/guard/admin/lockouts")" = 404 ] && ok "lockout endpoints not routed" || bad "lockout endpoints reachable from outside"
 
 echo; echo "${pass} passed, ${fail} failed, ${skipped} skipped"
 [ "${fail}" = 0 ]
