@@ -131,6 +131,12 @@ loginProvider:
     seconds: 900
   # -- Proxies in front of the login provider that set X-Forwarded-For (the ingress).
   trustedProxyHops: 1
+  # -- Extra CA certificates the login provider trusts (PEM), for a verifier or
+  #    status lists served with a private CA. A ConfigMap in the release
+  #    namespace; empty: the system CAs only.
+  caBundle:
+    configMap: ""
+    key: ca.crt
   # -- Bearer for GET/DELETE /guard/admin/lockouts (cluster-internal only).
   #    Empty: the endpoints are disabled. Generate with: openssl rand -hex 32
   adminToken: ""
