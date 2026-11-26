@@ -25,7 +25,12 @@ short-lived tokens with the verified claims. See
    stored for this request, never what the wallet answered, and checks:
    - the record is verified and belongs to this request, and answers its DCQL query only;
    - the nonce and the audience are this request's;
-   - holder binding: the credential subject is the presenter;
+   - holder binding: the credential subject is the presenter. For an SD-JWT VC (`dc+sd-jwt`, the
+     format of the role credential) the holder is the key the issuer bound in the credential
+     (`cnf.jwk`, as `did:jwk`), and the key-binding JWT must carry this request's nonce and
+     audience, cover exactly the presented disclosures (`sd_hash`) and be signed by that key; the
+     claims come only from disclosures the issuer committed to. JSON (`ldp_vp`) and JWT
+     presentations are read too;
    - the credential is valid now, and its status list (on an allowed origin) shows it is not
      revoked.
 4. The policy engine decides (`facis.login`): the issuer is trusted and vouches for the
@@ -122,3 +127,41 @@ and wiring, not the W-Stack. The same scripts run against a real verifier and a 
 | `POLICY_DATA=<dir>` (up.sh) | deployment data trusting the real issuer and its organisations |
 | `PRESENT_CMD=<command>` (e2e.sh) | presents through the wallet: called with the `openid4vp://` link and the case (roles, revoked...); exits 3 for a case the wallet cannot play, which is then skipped |
 | `E2E_ISSUER`, `E2E_ORG`, `E2E_HOLDER` (e2e.sh) | the real credential's issuer, organisation and holder |
+
+### Against a real W-Stack (level 2)
+
+The guard runs in its own cluster (the FAP deployment), the W-Stack in another (the federation
+trust services), and `test-wallet.js` holds a key of its own, receives an SD-JWT VC from the
+W-Stack issuer (OID4VCI) and presents it to the W-Stack verifier (OID4VP, DCQL, key binding).
+`services/guard/local/wstack/` prepares both sides; every script takes its cluster, hosts and
+addresses as settings.
+
+```bash
+wstack/connect-clusters.sh       # the guard cluster's node joins the W-Stack's network
+wstack/wstack-local-fixes.sh     # verifier and SD-JWT service releases, CA trust (see below)
+wstack/public-routes.sh          # nonce, credential and status list routes on 443 for the tenant
+wstack/expose-verifier.sh        # the verifier's internal API, for the guard's node only
+wstack/verifier-profile.sh       # the guard's permission set: one SD-JWT VC with org and roles
+wstack/level2-config.sh <dir>    # the guard's values, policy data and CA for that W-Stack
+EXTRA_VALUES=<dir>/values.yaml POLICY_DATA=<dir>/policy-data up.sh
+PRESENT_CMD=wstack/wallet-present.sh E2E_ISSUER=... E2E_ORG=... E2E_HOLDER="$(node test-wallet.js holder)" e2e.sh
+```
+
+`wallet-present.sh` has the W-Stack issue a credential with the roles a case needs
+(`wstack/issue.sh`) before presenting. The wallet cannot play a revoked credential or an untrusted
+issuer; those cases, and so the lockout, are skipped.
+
+What the W-Stack needs for this, found by running it (each a local deviation from the pinned
+baseline, applied by `wstack-local-fixes.sh` and `public-routes.sh`):
+
+- the credential verifier at 1.3.17-alpha or later: earlier releases never match a disclosed
+  SD-JWT against the DCQL query;
+- the SD-JWT service at 1.2.14 or later (1.2.13 always reports the key binding missing). The
+  guard checks the key binding itself in any case: its signature by the key the credential binds,
+  its `sd_hash`, nonce and audience;
+- the SD-JWT service told to trust the CA bundle mounted for it (`NODE_EXTRA_CA_CERTS`);
+- routes for the nonce and credential endpoints the issuer advertises, and for reading status
+  lists, which the tenant gateway lacks;
+- the guard asks status lists for one media type (`loginProvider.statusListAccept`): the W-Stack
+  answers several with an empty body, and its token status list (`statuslist+jwt`) carries the
+  bits in the W3C order rather than the order that format defines, so its own list type is read.

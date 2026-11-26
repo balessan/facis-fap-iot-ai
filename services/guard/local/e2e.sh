@@ -20,7 +20,8 @@
 #        PRESENT_CMD   present through a wallet instead of the stub verifier:
 #                      called as  $PRESENT_CMD <openid4vp-link> <case-json>
 #                      (case: roles, revoked, issuer, tamper...); exit 0 when it
-#                      presented, 3 when it cannot play that case (skipped)
+#                      presented, 4 when the verifier refused the presentation
+#                      (a refusal), 3 when it cannot play that case (skipped)
 #        E2E_KEEP_STATE=1  do not restart the login provider first (by default the
 #                      check starts from a fresh one: attempts and lockout counts
 #                      are held in its memory, and leftovers of an earlier run
@@ -79,6 +80,7 @@ login() {
         local rc=0
         "${PRESENT_CMD}" "${link}" "${present}" || rc=$?
         [ "${rc}" = 3 ] && { LOGIN_STATE=unsupported; return 0; }
+        [ "${rc}" = 4 ] && { LOGIN_STATE=refused-by-verifier; return 0; }
         [ "${rc}" = 0 ] || { LOGIN_STATE="wallet-failed-${rc}"; return 0; }
     fi
     for _ in $(seq 1 20); do
@@ -96,8 +98,14 @@ login() {
     CODE="$(sed -n 's/.*[?&]code=\([^&]*\).*/\1/p' <<<"${url}")"
 }
 present() { # roles-json [extra-json]
-    jq -cn --argjson r "$1" --argjson x "${2:-{\}}" --arg i "${ISSUER_DID}" --arg o "${ORG}" --arg h "${HOLDER}" \
-        '{roles: $r, issuer: $i, org_did: $o, holder: $h, purposes: ["analytics", "ai_insight"]} + $x'
+    # the stub mints whatever it is told; a wallet only gets the roles and the
+    # case (issuer, organisation and holder are those of its real credential)
+    if [ -n "${STUB}" ]; then
+        jq -cn --argjson r "$1" --argjson x "${2:-{\}}" --arg i "${ISSUER_DID}" --arg o "${ORG}" --arg h "${HOLDER}" \
+            '{roles: $r, issuer: $i, org_did: $o, holder: $h, purposes: ["analytics", "ai_insight"]} + $x'
+    else
+        jq -cn --argjson r "$1" --argjson x "${2:-{\}}" '{roles: $r} + $x'
+    fi
 }
 token() { # client -> token response JSON
     curl -s --max-time 20 -X POST "${BASE}/oauth2/token" -d grant_type=authorization_code --data-urlencode "code=${CODE}" \
@@ -168,6 +176,7 @@ echo "== 2. refusals (each one counts toward the lockout)"
 check_refused() { # name client roles-json [extra-json]
     login "$2" "$(present "$3" "${4:-}")"
     if [ "${LOGIN_STATE}" = unsupported ]; then skip "$1 (the wallet cannot play this case)"; return 0; fi
+    if [ "${LOGIN_STATE}" = refused-by-verifier ]; then ok "$1 -> refused by the verifier"; return 0; fi
     [ "${LOGIN_STATE}" = refused ] && [ -z "${CODE}" ] && { ok "$1 -> refused"; refusals=$((refusals + 1)); } || bad "$1 -> ${LOGIN_STATE}"
 }
 refusals=0

@@ -60,6 +60,9 @@ for f in ${EXTRA_VALUES:-}; do [ -f "${f}" ] || { echo "no such values file: ${f
 helm --kube-context "${ctx}" -n "${ns}" upgrade --install guard "${repo}/services/guard/helm/facis-guard" \
     -f "${here}/values-local.yaml" ${extra[@]+"${extra[@]}"} --set networkPolicy.ingressNamespace="${ns}" --wait --timeout 10m
 k rollout restart deployment/guard-edge >/dev/null
+# the policy engine reads its bundle at start: a new bundle needs a restart
+k rollout restart deployment/guard-policy >/dev/null
+k rollout status deployment/guard-policy --timeout 120s >/dev/null
 k rollout status deployment/guard-edge --timeout 120s >/dev/null
 
 echo "== port-forward http://localhost:8444 -> guard-edge"
