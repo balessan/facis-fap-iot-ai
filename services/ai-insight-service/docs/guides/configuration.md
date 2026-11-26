@@ -86,10 +86,12 @@ Important defaults from `config/default.yaml`:
 
 ### Policy and Rate Limiting
 
+- `AI_INSIGHT_AUTH__ROLES_CLAIM` — dot path of the roles claim in the verified token; default `realm_access.roles` (Keycloak), `roles` for the guard's tokens
+
 - `AI_INSIGHT_POLICY__ENABLED`
 - `AI_INSIGHT_POLICY__AGREEMENT_HEADER`
 - `AI_INSIGHT_POLICY__ASSET_HEADER`
-- `AI_INSIGHT_POLICY__REQUIRED_ROLES`
+- `AI_INSIGHT_POLICY__REQUIRED_ROLES` — at least one is required; default `administrator`, `data_scientist`, `data_analyst`
 - `AI_INSIGHT_POLICY__ALLOWED_AGREEMENT_IDS`
 - `AI_INSIGHT_POLICY__ALLOWED_ASSET_IDS`
 - `AI_INSIGHT_RATE_LIMIT__ENABLED`

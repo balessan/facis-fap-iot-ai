@@ -135,7 +135,7 @@ trino:
 
 policy:
   enabled: true
-  requiredRoles: ["ai_insight_consumer"]
+  requiredRoles: ["administrator", "data_scientist", "data_analyst"]   # at least one
 
 rateLimit:
   enabled: true
@@ -181,6 +181,9 @@ extraVolumeMounts:
     mountPath: /app/certs
     readOnly: true
 ```
+
+**Upgrading from the former default role.** Until this change the default required role was `ai_insight_consumer`, a realm role. Before deploying, give the users and service accounts one of `administrator`, `data_scientist` or `data_analyst` at the token issuer (with Keycloak: create the realm roles and assign them), or keep the former behaviour for now with `AI_INSIGHT_POLICY__REQUIRED_ROLES='["ai_insight_consumer"]'` on the ORCE pod. Otherwise every insight request answers 403.
+
 
 ```bash
 helm install facis-ai-insight ./facis-ai-insight -n facis -f values-cluster.yaml
@@ -602,7 +605,7 @@ curl -X POST http://localhost:8080/api/v1/insights/energy-summary \
 | Cause | Fix |
 |-------|-----|
 | Missing/invalid bearer token (401) | Send `Authorization: Bearer $TOKEN` with a token minted by the configured issuer (`AI_INSIGHT_AUTH__ISSUER`). |
-| Token valid but role missing (403) | Give the user or client one of the required roles (`AI_INSIGHT_POLICY__REQUIRED_ROLES`, default `ai_insight_consumer`) at the token issuer — roles are read from the token claims only. |
+| Token valid but role missing (403) | Give the user or client one of the required roles (`AI_INSIGHT_POLICY__REQUIRED_ROLES`, default `administrator`, `data_scientist`, `data_analyst`) at the token issuer — roles are read from the token's roles claim only (`AI_INSIGHT_AUTH__ROLES_CLAIM`). |
 | Policy scope headers missing | If policy is enabled, `x-agreement-id` and `x-asset-id` are required as request scope. |
 
 ### 7.5 Rate Limit 429 Errors

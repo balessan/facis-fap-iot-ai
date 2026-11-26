@@ -23,8 +23,8 @@ The flows and their runtime live under [`orce/`](orce/README.md). Endpoints:
 - `GET /api/ai/outputs/{output_id}`
 - `GET /openapi.json`, `/docs`, `/redoc`
 
-Authorization derives from verified Keycloak access tokens (roles from
-`realm_access.roles`); see [`docs/api/verified-token-authz.md`](docs/api/verified-token-authz.md).
+Authorization derives from verified access tokens (roles from the claim named by
+`AI_INSIGHT_AUTH__ROLES_CLAIM`, default `realm_access.roles`); see [`docs/api/verified-token-authz.md`](docs/api/verified-token-authz.md).
 
 Tests: `cd orce && npm run test:flows`.
 

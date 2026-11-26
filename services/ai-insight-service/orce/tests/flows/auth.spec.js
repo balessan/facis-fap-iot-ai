@@ -31,7 +31,7 @@ test.before(async () => {
 
 async function sign(claims = {}, { key = null, expiresIn = "5m", kid = KID } = {}) {
     return new jose.SignJWT({
-        realm_access: { roles: ["ai_insight_consumer"] },
+        realm_access: { roles: ["data_analyst"] },
         preferred_username: "svc-facis-orce",
         azp: "facis-orce",
         ...claims,
@@ -49,7 +49,20 @@ test("valid token yields identity with realm_access roles", async () => {
     const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER });
     assert.equal(result.authRejected, false);
     assert.equal(result.identity.sub, "svc-account-1");
-    assert.deepEqual(result.identity.roles, ["ai_insight_consumer"]);
+    assert.deepEqual(result.identity.roles, ["data_analyst"]);
+});
+
+test("roles claim is configurable: top-level roles (guard tokens) with rolesClaim=roles", async () => {
+    const token = await sign({ realm_access: undefined, roles: ["data_scientist", 42] });
+    const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER, rolesClaim: "roles" });
+    assert.equal(result.authRejected, false);
+    assert.deepEqual(result.identity.roles, ["data_scientist"]);
+});
+
+test("default roles claim ignores top-level roles", async () => {
+    const token = await sign({ realm_access: undefined, roles: ["administrator"] });
+    const result = await verifyBearer({ authorization: `Bearer ${token}`, jwks, issuer: ISSUER });
+    assert.deepEqual(result.identity.roles, []);
 });
 
 test("missing Authorization header -> 401 missing_authorization", async () => {

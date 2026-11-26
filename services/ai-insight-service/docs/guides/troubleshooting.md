@@ -177,9 +177,9 @@
 
 ### Problem: Missing Required Role
 
-**The symptom:** Request returns 403 Forbidden with `detail: "Missing required role"`.
+**The symptom:** Request returns 403 Forbidden with `detail: "Policy denied: none of the required roles (...)"`.
 
-**The cause:** The verified token carries none of the required roles. Roles are read from the token's claims only, never from a header. By default, `ai_insight_consumer` is required.
+**The cause:** The verified token carries none of the required roles. Roles are read from the token's claims only, never from a header. By default, one of `administrator`, `data_scientist` or `data_analyst` is required. The roles are read from the claim named by `AI_INSIGHT_AUTH__ROLES_CLAIM` (`realm_access.roles` by default, `roles` for the guard's tokens).
 
 **The fix:**
 1. Give the user or client the required role at the token issuer, then get a new token:
@@ -188,8 +188,8 @@
    ```
 2. If you have a different role (e.g., `ai_admin`), check the allowed roles:
    - `echo $AI_INSIGHT_POLICY__REQUIRED_ROLES`
-   - If empty, default is `["ai_insight_consumer"]`
-3. Add your role to the allowed list: `export AI_INSIGHT_POLICY__REQUIRED_ROLES="ai_insight_consumer,ai_admin"`
+   - If unset, the default is `["administrator","data_scientist","data_analyst"]`
+3. Add your role to the allowed list: `export AI_INSIGHT_POLICY__REQUIRED_ROLES='["data_analyst","ai_admin"]'`
 
 **Expected result:** Request includes the required role. Policy check passes.
 
@@ -197,7 +197,7 @@
 
 ### Problem: Role Not in Allow-List
 
-**The symptom:** Request returns 403 Forbidden with `detail: "Missing required role"`, even with a valid token.
+**The symptom:** Request returns 403 Forbidden with `detail: "Policy denied: none of the required roles (...)"`, even with a valid token.
 
 **The cause:** The token carries a role (e.g., `user`), but it's not in the configured `required_roles` list. The policy checks: is there any intersection between `required_roles` and the roles in the token? If not, access is denied.
 
@@ -207,7 +207,7 @@
    grep -r "required_roles" config/
    ```
 2. Ensure your role is in that list
-3. Or add it: `export AI_INSIGHT_POLICY__REQUIRED_ROLES="ai_insight_consumer"`
+3. Or add it: `export AI_INSIGHT_POLICY__REQUIRED_ROLES='["data_analyst","user"]'`
 
 **Expected result:** Your role is in the allow-list. Request proceeds.
 
