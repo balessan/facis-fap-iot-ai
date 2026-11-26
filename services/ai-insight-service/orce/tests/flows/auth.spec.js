@@ -119,6 +119,20 @@ test("auth flow: verifier uses jose via libs and returns via link out", () => {
     assert.match(prep.func, /WWW-Authenticate/);
 });
 
+test("correlation id propagated + decision event is credential-free", () => {
+    const flow = readFlow("ai-insight-auth.json");
+    const prep = flow.find((n) => n.id === "fn_auth_prep");
+    const verify = flow.find((n) => n.id === "fn_auth_verify");
+    assert.match(prep.func, /x-correlation-id/);
+    assert.match(prep.func, /X-Correlation-Id/);
+    assert.match(prep.func, /emitAuthEvent/);
+    assert.match(verify.func, /event: 'ai_insight\.auth'/);
+    const evStart = verify.func.indexOf("event: 'ai_insight.auth'");
+    const evBlock = verify.func.slice(evStart, verify.func.indexOf("}));", evStart));
+    assert.ok(!evBlock.includes("_authToken"), "decision event must not carry the token");
+    assert.ok(!evBlock.includes("credentialSubject"), "decision event must not carry VC content");
+});
+
 test("every insight POST flow calls the shared verifier before policy", () => {
     for (const name of INSIGHT_FLOWS) {
         const flow = readFlow(name);
