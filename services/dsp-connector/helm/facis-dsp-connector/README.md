@@ -48,11 +48,6 @@ Rendered in both modes:
   for the state store. Consumed by the ORCE pod via `envFrom`.
 - `PersistentVolumeClaim/facis-dsp-state` — backs `/data/dsp-state/` on the
   ORCE pod for `transfers.json` + `negotiations.json`.
-- `StatefulSet/<fullname>-mongo` + `Service/<fullname>-mongo` — self-contained
-  MongoDB instance backing the Identity Hub (`credentials` collection of
-  issued/self-issued VCs, see `facis-dsp-iam-hub.json`). Unlike the
-  prerequisites below, this is entirely within this chart — no cross-chart
-  wiring needed. Disable with `dsp.iam.mongo.enabled=false`.
 - `StatefulSet/<fullname>-postgres` + `Service/<fullname>-postgres` (port 5432)
   — self-contained PostgreSQL instance backing DSP transfer/negotiation state
   (SRS §6.1). Single replica, PVC mounted at `/var/lib/postgresql/data`
@@ -60,9 +55,9 @@ Rendered in both modes:
   from the `-dsp-secrets` Secret's `DSP_PG_PASSWORD` key; the state flow reaches
   it via `DSP_PG_URI`. Configured under `dsp.pg.*` — disable with
   `dsp.pg.enabled=false`.
-- `NetworkPolicy/<fullname>-postgres` + `NetworkPolicy/<fullname>-mongo` (NF-8)
-  — Calico-enforced, INGRESS-ONLY default-deny on the two datastores. Postgres
-  (5432) and Mongo (27017) accept traffic ONLY from the dedicated ORCE pod
+- `NetworkPolicy/<fullname>-postgres` (NF-8)
+  — Calico-enforced, INGRESS-ONLY default-deny on the datastore. Postgres
+  (5432) accepts traffic ONLY from the dedicated ORCE pod
   (component `dsp-orce`); every other pod is denied. Egress is untouched, so
   ORCE's outbound Kafka/Trino/DID-fetch is unaffected. Rendered only when
   `dedicatedOrce.enabled` (in shared-pod mode the client's labels are outside
@@ -114,31 +109,9 @@ separate ORCE Helm chart must be configured to:
        readOnly: true
    ```
 
-3. Reference the pre-created private-key Secret as `DSP_CONNECTOR_KEY` — this
-   connector's own signing key for did:web + Participant VC self-issuance
-   (see `services/dsp-connector/orce/flows/facis-dsp-iam-issuance.json`).
-   The Secret's data key is `privateJwk`, not `DSP_CONNECTOR_KEY`, so this
-   needs a single renamed env var rather than a bulk `extraEnvFrom` — the
-   same shape this chart's own `orce-flow-deploy-job.yaml` already uses to
-   rename its `token` key to `ORCE_ADMIN_TOKEN`:
-   ```yaml
-   # In the ORCE chart values
-   extraEnv:
-     - name: DSP_CONNECTOR_KEY
-       valueFrom:
-         secretKeyRef:
-           name: facis-dsp-connector-identity-key   # matches dsp.iam.keySecret
-           key: privateJwk
-   ```
-
-   Like `facis-orce-admin` (see "ORCE Admin API token" below), this Secret
-   is deliberately **not** rendered by this chart — pre-create it before
-   `helm install`:
-   ```sh
-   kubectl create secret generic facis-dsp-connector-identity-key \
-     --namespace facis \
-     --from-literal=privateJwk='{"kty":"EC","crv":"P-256","d":"...","x":"...","y":"...","alg":"ES256"}'
-   ```
+3. No private key is configured for the connector: its participant
+   credential is kept in its W-Stack tenant's storage, and its presentations
+   are signed by the tenant's crypto provider with the tenant's key.
 
 4. Stay at `replicas: 1`. The state files are NOT multi-replica safe.
 
