@@ -574,7 +574,7 @@ def step_request_without_token(sec_state: _SecurityScenarioState) -> None:
 def step_response_401(sec_state: _SecurityScenarioState) -> None:
     assert sec_state.responses, "No response captured"
     actual = sec_state.responses[-1].status_code
-    assert actual == 401, f"Expected 401 Unauthorized (verified mode, no token), got {actual}"
+    assert actual == 401, f"Expected 401 (verified mode, no token), got {actual}"
 
 
 @when("I make a request with a valid token and scope headers")
