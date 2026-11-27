@@ -86,6 +86,21 @@ cluster, and network policies restrict who reaches them.
 Attempts and lockouts are held in the login provider's memory: one replica, and a restart ends
 the logins in progress.
 
+## Change the login provider
+
+The login provider's code lives in `orce/src/`, one file per function node (`<node id>.js`);
+`orce/build-flow.py` holds the wiring (nodes, routes, outputs) and builds the flow ORCE loads
+(`orce/flows/facis-guard-login.json`) and the chart's copy. Edit `src/` or the wiring, never the
+JSON, then:
+```bash
+python3 services/guard/orce/build-flow.py            # rebuilds the flow and the chart's copy
+(cd services/guard/orce/tests && npm test)           # includes a check that the flow matches src/
+```
+Commit the sources and both JSON files together; CI runs `build-flow.py --check`. A new function
+node needs its `src/<id>.js` and a `fn(...)` line in `build-flow.py`. `src/guard-config.js`
+reads the `GUARD_*` settings; `src/guard-brand.js` holds the pages' look (the FACIS logo is
+embedded from the UI's `facis-logo.svg` at build time).
+
 ## Test
 
 **Flow tests** (Node.js 20+, no install needed):
@@ -93,7 +108,8 @@ the logins in progress.
 cd services/guard/orce/tests && npm test
 ```
 They run the real function-node code of the flow JSON (with the DSP connector's
-`run-node.js`), the HTTP replies being played by the tests.
+`run-node.js`), the HTTP replies being played by the tests, and check that the flow matches
+`orce/src/`.
 
 **Policy tests:** `opa test infrastructure/opa/bundle` and `infrastructure/opa/check-fixtures.sh`.
 
