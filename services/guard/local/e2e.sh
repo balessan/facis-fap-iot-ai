@@ -78,7 +78,8 @@ login() {
             -d "$(jq -c --arg s "${state}" '. + {state: $s}' <<<"${present}")" || { LOGIN_STATE=stub-unreachable; return 0; }
     else
         local rc=0
-        "${PRESENT_CMD}" "${link}" "${present}" || rc=$?
+        # the wallet reports on stderr: stdout carries only --token's token
+        "${PRESENT_CMD}" "${link}" "${present}" >&2 || rc=$?
         [ "${rc}" = 3 ] && { LOGIN_STATE=unsupported; return 0; }
         [ "${rc}" = 4 ] && { LOGIN_STATE=refused-by-verifier; return 0; }
         [ "${rc}" = 0 ] || { LOGIN_STATE="wallet-failed-${rc}"; return 0; }
