@@ -1,17 +1,24 @@
 # Local setup: the guard and a wallet login on your machine
 
-A linear path to run the guard (Ory Hydra, the ORCE login provider, the policy engine) on a
-local Kubernetes cluster, check it end to end, and log in to the AI Insight UI through it.
-Allow about 20 minutes the first time. Local tests only: dev mode, plain http, test credentials.
+How to run the guard (Ory Hydra, the ORCE login provider, the policy engine) on a local
+Kubernetes cluster, check it end to end, and log in to the AI Insight UI through it. Local tests
+only: dev mode, plain http, test credentials.
 
-There are two levels:
+## Pick your level
 
-| Level | What is real | What it proves | Needs |
-|---|---|---|---|
-| 1 (steps 1–6) | The guard. A stub plays the wallet, the credential verifier and the issuer's status list | The guard's logic and wiring, its tokens, the UI login | A laptop with Docker |
-| 2 (step 7) | Also the OCM W-Stack (issuer, verifier, status lists) in a second cluster, and a test wallet with its own key | The whole chain with a real SD-JWT VC | A local W-Stack, about 10 GiB of RAM |
+| | Level 1: quick check | Level 2: the real chain |
+|---|---|---|
+| What is real | The guard. A stub in the guard's namespace plays the wallet, the credential verifier and the issuer's status list | Also the OCM W-Stack (issuer, verifier, status lists) in a second cluster, and a test wallet with its own key |
+| What it proves | The guard's logic and wiring, its tokens, the UI login | The whole chain with a real SD-JWT VC |
+| Needs | A laptop with Docker; no W-Stack | A local W-Stack (about 10 GiB of RAM), brought up first |
+| Time | About 20 minutes the first time | About an hour the first time, mostly the W-Stack |
+| Steps | Part A | Part A, steps 0 to 3, then Part B |
+
+Start with level 1: level 2 builds on its guard cluster.
 
 All paths below are from the repository root.
+
+# Part A: the guard with a stub (level 1)
 
 ## 0. Prerequisites
 
@@ -120,33 +127,42 @@ services/guard/local/down.sh                     # the port-forward and the name
 kind delete cluster --name facis                 # if you created it for this
 ```
 
-## 7. Level 2: a real W-Stack (optional)
+# Part B: the guard with a real W-Stack (level 2)
 
-The guard runs in its cluster, and the W-Stack in a second one: the trust services aren't part of
-the FAP deployment. Install the W-Stack with the `eclipse-xfsc/deployment` charts in its own
-kind cluster, with a tenant whose public host has a certificate from a CA you hold.
+The guard runs in its cluster, the W-Stack in a second one: the trust services aren't part of
+the FAP deployment. You need Part A's steps 0 to 3 done (the guard's cluster and the guard).
 
-The scripts in `wstack/` prepare both sides. Each one takes its cluster, hosts and addresses as
-settings, and its header lists them. Put yours in a file outside the repository and `source` it:
+## B1. Bring up the W-Stack
+
+Follow [`infrastructure/wstack/local/README.md`](../../../infrastructure/wstack/local/README.md):
+its own kind cluster, the pinned `eclipse-xfsc/deployment` charts, a tenant whose host has a
+certificate from a local CA. Its `up.sh --check` shows the plan before anything changes. Come back
+when its `up.sh` ends without error.
+
+## B2. Settings for both sides
+
+The scripts in `wstack/` take their clusters, hosts and addresses as settings; each script's
+header lists them. Put them in a file outside the repository and `source` it in every terminal.
+The W-Stack guide's "Use it from the guard's level-2 test" section gives the W-Stack's values;
+add the guard's side:
 
 ```bash
-export KUBE_CONTEXT=kind-facis                   # the guard's cluster
-export WSTACK_CONTEXT=kind-wstack                # the W-Stack's cluster
-export WSTACK_NODE=wstack-control-plane WSTACK_NETWORK=kind-wstack WSTACK_NODE_IP=<its address>
-export FAP_NODE=facis-control-plane FAP_NODE_IP=<the guard node's address on that network>
-export WSTACK_HOST=<the tenant's public host>    # issuer, verifier, status lists
-export TLS_SECRET=<namespace/name of the tenant's TLS secret>
-export CA_FILE=<PEM of the CA of the W-Stack's certificates>
-export NODE_EXTRA_CA_CERTS="${CA_FILE}"          # for test-wallet.js
-export VERIFIER_URL=http://<W-Stack node address>:32093
-export VCT=https://<tenant host>/api/schema/<SD-JWT credential type>
+# from the W-Stack guide ("Use it from the guard's level-2 test")
+export WSTACK_CONTEXT=kind-wstack WSTACK_NODE=wstack-control-plane WSTACK_NETWORK=<...> WSTACK_NODE_IP=<...>
+export WSTACK_HOST=<...> TLS_SECRET=<...> CA_FILE=<...> NODE_EXTRA_CA_CERTS="$CA_FILE"
+export VERIFIER_URL=<...> VCT=<...> ORG_DID=<...> E2E_ISSUER=<...> E2E_ORG=<...>
+# the guard's side
+export KUBE_CONTEXT=kind-facis
+export FAP_NODE=facis-control-plane FAP_NODE_IP=<the address the guard's node gets on WSTACK_NETWORK>
 export VERIFIER_IMAGE=<credential-verification-service 1.3.17-alpha or later, by digest>
 export SDJWT_IMAGE=<sd-jwt-service 1.2.14 or later, by digest>
-export ORG_DID=did:web:<tenant host> E2E_ISSUER=did:web:<tenant host> E2E_ORG=did:web:<tenant host>
 export WALLET_FILE="$HOME/.guard-local-test-wallet.json"
 ```
 
-Then:
+`FAP_NODE_IP` is known after B3's `connect-clusters.sh`, which prints it; set it before
+`expose-verifier.sh`.
+
+## B3. Connect the two
 
 ```bash
 cd services/guard/local
@@ -155,16 +171,29 @@ wstack/wstack-local-fixes.sh     # verifier and SD-JWT service releases, CA trus
 wstack/public-routes.sh          # nonce, credential and status list routes for the tenant
 wstack/expose-verifier.sh        # the verifier's internal API, for the guard's node only
 wstack/verifier-profile.sh       # the guard's permission set: one SD-JWT VC with org and roles
-wstack/level2-config.sh ~/guard-level2
+```
+
+The guard README's "Against a real W-Stack (level 2)" section explains what each fix is for.
+
+## B4. Point the guard at the W-Stack
+
+```bash
+wstack/level2-config.sh ~/guard-level2           # values, policy data and CA for that W-Stack
 EXTRA_VALUES=~/guard-level2/values.yaml POLICY_DATA=~/guard-level2/policy-data ./up.sh
+```
+
+To go back to level 1, run `./up.sh` without them.
+
+## B5. The end-to-end check with the wallet
+
+```bash
 PRESENT_CMD=wstack/wallet-present.sh E2E_HOLDER="$(node test-wallet.js holder)" ./e2e.sh
 ```
 
 Expect `14 passed, 3 skipped`. The skipped cases are those the wallet can't play: a revoked
-credential, an untrusted issuer, and therefore the lockout. The guard README's "Against a real
-W-Stack (level 2)" section explains what each fix is for.
+credential, an untrusted issuer, and therefore the lockout.
 
-**In the browser at level 2:**
+## B6. Log in from a browser
 
 1. Have the W-Stack issue a credential to the wallet: `wstack/issue.sh '["data_analyst"]'`.
 2. Open the UI or the URL of step 5.
@@ -188,7 +217,9 @@ services/guard/local/up.sh                                     # restores the po
 
 Then `npm run dev` again for the UI.
 
-**Level 2, the W-Stack first:**
+**Level 2, the W-Stack first:** start the W-Stack's node before the guard's, so it keeps its
+address, then run `infrastructure/wstack/local/resume.sh` (`--check` first shows what it would do).
+It handles the following; with a W-Stack installed some other way, do it by hand:
 
 - **OpenBao comes back sealed:** unseal it with your unseal keys. Until then, the services
   that read their credentials from it crash-loop.
@@ -212,4 +243,4 @@ Then `npm run dev` again for the UI.
   again.
 
 Then re-run `level2-config.sh` if its output was under `/tmp`, and re-run `up.sh` with
-`EXTRA_VALUES` and `POLICY_DATA`.
+`EXTRA_VALUES` and `POLICY_DATA` (step B4).
