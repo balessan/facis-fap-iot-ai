@@ -563,4 +563,4 @@ done
 echo
 echo "Local W-Stack up: ${TENANT_DID}"
 echo "  CA of its certificates: ${CA_DIR}/ca.crt     TLS secret for the tenant host: ${SUPPORT_NS}/tenant-tls"
-echo "  after a reboot: infrastructure/wstack/local/resume.sh"
+echo "  after a reboot: ${LOCAL_DIR}/resume.sh"

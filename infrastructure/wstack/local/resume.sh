@@ -49,7 +49,7 @@ if ! "${K[@]}" get --raw /readyz >/dev/null 2>&1; then
     exit 1
 fi
 if ! "${K[@]}" get namespace "${NS_SEC}" >/dev/null 2>&1; then
-    echo "FAIL: namespace ${NS_SEC} missing: the W-Stack is not installed here (infrastructure/wstack/local/up.sh)" >&2
+    echo "FAIL: namespace ${NS_SEC} missing: the W-Stack is not installed here (${LOCAL_DIR}/up.sh)" >&2
     exit 1
 fi
 "${K[@]}" -n "${NS_SEC}" wait pod/openbao-0 --for=jsonpath='{.status.phase}'=Running --timeout="${TIMEOUT}s" >/dev/null
