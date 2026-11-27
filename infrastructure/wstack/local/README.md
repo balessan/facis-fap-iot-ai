@@ -89,6 +89,22 @@ At the end it prints the tenant's DID, the CA file (`$WSTACK_STATE_DIR/ca/ca.crt
 under `~/.local/state/facis-wstack-local/`) and the TLS secret of the tenant host
 (`wstack-local/tenant-tls`).
 
+**Check it:**
+
+```bash
+S=~/.local/state/facis-wstack-local/wstack     # .../<WSTACK_CLUSTER>
+. $S/zone.env
+kubectl --context kind-wstack get pods -A | grep -vE 'Running|Completed'          # only the header line
+curl -s --cacert $S/ca/ca.crt https://connector.$WSTACK_ZONE/.well-known/did.json | jq .id
+```
+
+The second command prints the tenant's DID. The `did:web` document is served on 443 by the
+ingress, with the local CA. The tenant gateway's nodePort (32091) carries the issuer's API with
+the cluster's own self-signed certificate, and serves no `did.json`. The issuer's metadata,
+nonce, credential and status list URLs answer on 443 once the guard's
+`services/guard/local/wstack/public-routes.sh` has added their routes (Part B, step B3, of
+`services/guard/local/README.md`); before that they answer 404 there.
+
 ## What runs where
 
 | Namespace | Contents |
