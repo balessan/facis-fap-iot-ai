@@ -9,8 +9,8 @@
 # Env:   FAP_NODE (default facis-control-plane), WSTACK_NODE, WSTACK_NETWORK
 set -euo pipefail
 node="${FAP_NODE:-facis-control-plane}"
-wnode="${WSTACK_NODE:?set WSTACK_NODE (the W-Stack cluster's kind node)}"
-net="${WSTACK_NETWORK:?set WSTACK_NETWORK (the W-Stack's Docker network)}"
+wnode="${WSTACK_NODE:?set WSTACK_NODE (kind node of the W-Stack cluster)}"
+net="${WSTACK_NETWORK:?set WSTACK_NETWORK (Docker network of the W-Stack)}"
 want="${WSTACK_NODE_IP:?set WSTACK_NODE_IP (the address the W-Stack hosts resolve to)}"
 docker inspect "${node}" >/dev/null 2>&1 || { echo "kind node ${node} not found" >&2; exit 2; }
 wip="$(docker inspect -f "{{if .State.Running}}{{(index .NetworkSettings.Networks \"${net}\").IPAddress}}{{end}}" "${wnode}" 2>/dev/null || true)"
