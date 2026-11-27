@@ -62,7 +62,7 @@ The custom image extends the ORCE base with two plugin sets installed into stagi
 - **rdkafka plugin** (`node-red-contrib-rdkafka`): requires `librdkafka-dev` and native compilation tools (`python3`, `make`, `g++`). Built with `BUILD_LIBRDKAFKA=0` to use the system library rather than compiling from source.
 - **JSON Forms GUI Generator** (`@jsonforms/core`, `@jsonforms/react`, `@jsonforms/material-renderers`, MUI, `node-red-contrib-uibuilder`): provides dynamic UI rendering from JSON Schema definitions for the DCM catalogue interface.
 
-A `npm install -g npm@latest` step is required to fix a `node-gyp` compatibility issue with Node 20.19 in the ORCE base image (the bundled `node-gyp` has a broken logger that causes `TypeError: Cannot read properties of undefined 'pause'`).
+An `npm install -g npm@11.21.2` step is required to fix a `node-gyp` compatibility issue with Node 20.19 in the ORCE base image (the bundled `node-gyp` has a broken logger that causes `TypeError: Cannot read properties of undefined 'pause'`). The version is pinned: `npm@latest` is npm 12, which needs Node 22 and fails on the base image's Node 20.
 
 ### 2.2 Entrypoint Script
 
@@ -653,7 +653,8 @@ setTimeout(() => { console.log('No messages after 15s'); process.exit(1); }, 150
 |---|---|---|
 | `ErrImagePull` on ORCE or simulation pod | Containerd does not trust the in-cluster registry | Re-apply the registry-config DaemonSet (Section 3.2) and verify with `kubectl -n orce rollout status daemonset/registry-config` |
 | ORCE shows plain Node-RED (no branding) | `/data/` not seeded with ORCE files on first boot | Delete the PVC (`kubectl -n orce delete pvc orce-data`) and restart the pod to trigger the entrypoint bootstrap |
-| `TypeError: Cannot read properties of undefined 'pause'` during build | `node-gyp` incompatibility with Node 20.19 | Ensure `RUN npm install -g npm@latest` is in the Dockerfile before any `npm install` |
+| `TypeError: Cannot read properties of undefined 'pause'` during build | `node-gyp` incompatibility with Node 20.19 | Ensure `RUN npm install -g npm@11.21.2` is in the Dockerfile before any `npm install` |
+| `npm install -g npm@latest` fails during build | npm 12 needs Node 22; the base image runs Node 20 | Pin npm to a release that supports Node 20 (`npm@11.21.2`) instead of `npm@latest` |
 | rdkafka producers show "disconnected" | Wrong broker DNS or mTLS cert issue | Verify broker address uses `-headless` service name; check that `kafka-certs` volume is mounted and contains `ca.crt`, `tls.crt`, `tls.key` |
 | `ENOTFOUND kafka-broker-default-0.kafka-broker-default.stackable...` | Using non-headless service name | Change broker address to use `kafka-broker-default-headless` (with `-headless` suffix) |
 | `require is not defined` in Node-RED function node | `require()` unavailable in function nodes | Use the `libs` array: `[{"var": "fs", "module": "fs"}]` and access the module directly |

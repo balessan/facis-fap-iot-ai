@@ -10,8 +10,10 @@ RUN apk add --no-cache librdkafka-dev python3 make g++
 # Fix node-gyp compatibility with Node 20.19.
 # The ORCE base image ships npm 11.6.0 whose bundled node-gyp has a broken
 # logger (TypeError: Cannot read properties of undefined 'pause').
-# Updating npm brings a fixed node-gyp.
-RUN npm install -g npm@latest
+# Updating npm brings a fixed node-gyp. Pinned, not npm@latest: npm 12 needs
+# Node 22, and the base image runs Node 20. npm 11.21.2 supports
+# Node ^20.17 || >=22.9 and bundles node-gyp 12.
+RUN npm install -g npm@11.21.2
 
 # ── Kafka plugin (rdkafka) ───────────────────────────────────────────
 # Install node-red-contrib-rdkafka into a staging directory.
