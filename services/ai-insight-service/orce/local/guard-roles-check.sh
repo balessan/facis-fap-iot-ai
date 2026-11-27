@@ -45,7 +45,7 @@ bad() { echo "  FAIL  $1"; fail=$((fail + 1)); }
 
 for t in docker curl jq; do command -v "$t" >/dev/null || { echo "missing: $t" >&2; exit 2; }; done
 curl -sf -o /dev/null "${GUARD}/.well-known/openid-configuration" \
-    || { echo "the guard does not answer on ${GUARD}: run services/guard/local/up.sh first" >&2; exit 2; }
+    || { echo "the guard does not answer on ${GUARD}: run ${repo}/services/guard/local/up.sh first" >&2; exit 2; }
 [ -x "${repo}/services/guard/local/e2e.sh" ] || { echo "services/guard is missing from this checkout" >&2; exit 2; }
 
 guard_token() { "${repo}/services/guard/local/e2e.sh" --token "$1" facis-local-test; }
