@@ -599,3 +599,19 @@ test('status list: one media type is asked, the configured one', async () => {
     p = await poll(c, s.id, record(vpJwt()));
     assert.equal(p.next.headers.accept, 'application/statuslist+jwt');
 });
+
+test('look: the login and error pages carry the FACIS logo and the shared styles', async () => {
+    const c = await configured();
+    await run(c, 'guard-brand', {});
+    const brand = c.globalCtx.get('guardBrand');
+    assert.ok(brand.logo.startsWith('data:image/svg+xml;base64,'), 'logo embedded');
+    assert.ok(brand.css.includes('--primary:#005FFF'));
+    const s = await startLogin(c);
+    assert.ok(s.page.payload.includes('<img class="logo" src="data:image/svg+xml;base64,'));
+    assert.ok(s.page.payload.includes('<main class="card">'));
+    assert.ok(s.page.payload.includes('class="button secondary"'));
+    let r = await run(c, 'guard-error-landing', req({ error: 'access_denied' }));
+    r = await run(c, 'guard-error-page', r.result);
+    assert.ok(r.result.payload.includes('<img class="logo"'));
+    assert.ok(r.result.headers['content-security-policy'].includes('img-src data:'));
+});
