@@ -41,23 +41,20 @@ branch moves almost daily and changes chart versions.
 cp infrastructure/wstack/local/settings.example.env infrastructure/wstack/local/settings.env   # ignored by git
 ```
 
-The one required setting is **`WSTACK_ZONE`**, a wildcard DNS zone whose names resolve to the
-node's address. Wallets, the guard and the W-Stack's own services all reach the tenant as
-`<TENANT>.<WSTACK_ZONE>` (default tenant `connector`). A wildcard DNS service that maps
-`<address>.<its domain>` to `<address>` needs no setup, for example
-`WSTACK_ZONE=<node address>.sslip.io`.
+Nothing is required. The setting that matters is **`WSTACK_ZONE`**, a wildcard DNS zone whose
+names resolve to the node's address: wallets, the guard and the W-Stack's own services all reach
+the tenant as `<TENANT>.<WSTACK_ZONE>` (default tenant `connector`).
 
-The zone embeds the node's address, so keep that address stable:
+**Without it**, `up.sh` creates the cluster first, reads the node's address and uses
+`<address>.sslip.io`, a public wildcard DNS name that resolves to that address with no setup. It
+keeps the zone and the address in `$WSTACK_STATE_DIR/zone.env`: later runs and `resume.sh` use
+the same, and refuse to run if the node comes back with another address.
 
-1. Give the node a Docker network of its own: `docker network create wstack`, then
-   `WSTACK_NETWORK=wstack`. Alone on it, the node gets the network's first address.
-2. Create the cluster first to learn the address. `up.sh` reuses an existing cluster.
-   ```bash
-   KIND_EXPERIMENTAL_DOCKER_NETWORK=wstack kind create cluster --name wstack --config infrastructure/wstack/local/kind-config.yaml
-   docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' wstack-control-plane
-   ```
-3. Set `WSTACK_ZONE` from it, and `WSTACK_NODE_IP` to it: every script then refuses to run if the
-   node holds another address.
+**With your own zone**, set `WSTACK_ZONE` (and `WSTACK_NODE_IP` to the address it resolves to);
+create the cluster first to learn the address, `up.sh` reuses it.
+
+Either way, give the node a Docker network of its own, so it keeps the same address across
+restarts: `docker network create wstack`, then `WSTACK_NETWORK=wstack`.
 
 The other settings have defaults (cluster `wstack`, context `kind-wstack`, namespace
 `ocm-wstack`, gateway nodePort 32091); see `settings.example.env`. The environment can set any
@@ -163,6 +160,7 @@ It does the following:
 The guard's scripts in `services/guard/local/wstack/` take this W-Stack's values as settings:
 
 ```bash
+. ~/.local/state/facis-wstack-local/wstack/zone.env   # WSTACK_ZONE and WSTACK_NODE_IP, when up.sh picked them
 export WSTACK_CONTEXT=kind-wstack WSTACK_NODE=wstack-control-plane WSTACK_NETWORK=<WSTACK_NETWORK> WSTACK_NODE_IP=<WSTACK_NODE_IP>
 export WSTACK_HOST=connector.<WSTACK_ZONE>
 export TLS_SECRET=wstack-local/tenant-tls

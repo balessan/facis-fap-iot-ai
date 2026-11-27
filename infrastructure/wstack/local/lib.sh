@@ -30,6 +30,14 @@ DEPLOYMENT_DIR="${DEPLOYMENT_DIR:-$(cd "${REPO_ROOT}/.." && pwd)/deployment}"
 WSTACK_LOCK="${WSTACK_LOCK:-${REPO_ROOT}/infrastructure/wstack/wstack-images.lock.tsv}"
 WSTACK_STATE_DIR="${WSTACK_STATE_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/facis-wstack-local/${WSTACK_CLUSTER}}"
 WSTACK_TIMEOUT="${WSTACK_TIMEOUT:-300}"
+# Without WSTACK_ZONE, up.sh uses <node address>.sslip.io once the node exists
+# and records it, with the address, in ZONE_FILE: later runs and resume.sh keep
+# the same zone, and refuse a node that came back with another address.
+ZONE_FILE="${WSTACK_STATE_DIR}/zone.env"
+if [ -z "${WSTACK_ZONE}" ] && [ -f "${ZONE_FILE}" ]; then
+    # shellcheck disable=SC1090
+    . "${ZONE_FILE}"
+fi
 SUPPORT_NS="wstack-local"   # local-only objects: the tenant certificate, the did:web ingress
 NS_SEC=security
 NS_INFRA=infrastructure
@@ -41,13 +49,8 @@ H=(helm --kube-context "${WSTACK_CONTEXT}")
 did() { echo "  -> $*"; }
 todo() { echo "  !! $* (--check: not done)"; }
 
-# require_settings: the settings without a sensible default.
+# require_settings: the tools (WSTACK_ZONE has a default, see ZONE_FILE).
 require_settings() {
-    if [ -z "${WSTACK_ZONE}" ]; then
-        echo "FAIL: set WSTACK_ZONE: a wildcard DNS zone whose names resolve to the W-Stack node's address" >&2
-        echo "      (see settings.example.env; up.sh --check prints the node's address once the cluster exists)" >&2
-        return 1
-    fi
     for t in kubectl helm jq curl openssl python3 docker; do
         command -v "${t}" >/dev/null || { echo "FAIL: missing tool: ${t}" >&2; return 1; }
     done

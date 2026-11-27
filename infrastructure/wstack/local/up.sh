@@ -25,7 +25,8 @@
 #        --check  prints the plan and checks the settings, the deployment clone,
 #                 its pin and its chart paths; touches no cluster (it only
 #                 prepares the patched chart copies in WSTACK_STATE_DIR)
-# Settings: settings.example.env (WSTACK_ZONE is required).
+# Settings: settings.example.env. Without WSTACK_ZONE, the cluster is created
+#           first and the zone is <node address>.sslip.io (kept in WSTACK_STATE_DIR).
 # Needs: docker, kind, kubectl, helm (3.8+ or 4), jq, curl, openssl, python3;
 #        about 10 GiB of memory for the node; fs.inotify.max_user_instances
 #        of 1024 or more (see README.md).
@@ -486,6 +487,23 @@ plan+=("local CA trusted by the W-Stack services|ca_bundles")
 plan+=("verifier presentation profile for wallet logins|verifier_profile")
 plan+=("network policies of this repository (when present)|apply_network_policies")
 plan+=("new pods start (Calico), tenant registrations|health_gate && register_tenant")
+
+# --- the zone, when not set: from the node's address ------------------------
+if [ -z "${WSTACK_ZONE}" ]; then
+    if [ "${MODE}" = check ]; then
+        ip="$(node_ip)"
+        echo "WSTACK_ZONE not set: up.sh will use ${ip:-<node address>}.sslip.io${ip:+ (the address of the node)}, and keep it in ${ZONE_FILE}"
+        TENANT_HOST="${TENANT}.${ip:-<node address>}.sslip.io"; TENANT_DID="did:web:${TENANT_HOST}"
+    else
+        echo "== WSTACK_ZONE not set: the cluster first, then <node address>.sslip.io"
+        create_cluster
+        ip="$(node_ip)"
+        [ -n "${ip}" ] || { echo "FAIL: no address for ${WSTACK_NODE} on ${WSTACK_NETWORK}" >&2; exit 1; }
+        printf 'WSTACK_ZONE=%s.sslip.io\nWSTACK_NODE_IP=${WSTACK_NODE_IP:-%s}\n' "${ip}" "${ip}" > "${ZONE_FILE}"
+        did "zone ${ip}.sslip.io, node ${ip} (kept in ${ZONE_FILE}); continuing"
+        exec "${BASH_SOURCE[0]}"
+    fi
+fi
 
 # --- --check ------------------------------------------------------------------
 if [ "${MODE}" = check ]; then
