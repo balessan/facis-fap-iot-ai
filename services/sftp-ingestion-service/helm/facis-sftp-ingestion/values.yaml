@@ -62,8 +62,12 @@ sftp:
   host: ""
   port: 22
   username: facis
-  # -- Password (stored in Secret)
+  # -- Password (stored in the <fullname>-credentials Secret)
   password: ""
+  # -- Render <fullname>-credentials from sftp.password (default). Set to
+  #    false when that Secret (key sftp_password) comes from elsewhere, e.g.
+  #    an ExternalSecret (externalSecrets below).
+  renderSecret: true
   remotePath: /ingest
   archivePath: /archive
   pollIntervalSeconds: 60

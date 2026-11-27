@@ -78,7 +78,12 @@ orceFlowDeploy:
 # (see templates/orce-secret.yaml). The ORCE chart must include
 # `envFrom: [secretRef: <fullname>-dsp-secrets]` in its Deployment.
 dsp:
-  # -- HMAC secret for signed-URL generation (REQUIRED).
+  # -- Render <fullname>-dsp-secrets from these values (default). Set to false
+  #    when the Secret comes from elsewhere, e.g. an ExternalSecret
+  #    (externalSecrets below); hmacSecret and the other secret values are
+  #    then not read.
+  renderSecret: true
+  # -- HMAC secret for signed-URL generation (REQUIRED when renderSecret).
   #    Generate with: openssl rand -hex 32
   hmacSecret: ""
   # -- Base URL for the data API (HTTP-pull endpoint). Must be the live
