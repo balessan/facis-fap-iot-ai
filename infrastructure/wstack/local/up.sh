@@ -234,6 +234,13 @@ apply_network_policies() {
         done
         if [ -n "${missing}" ]; then echo "  skipped ${f#"${REPO_ROOT}/"}: namespace(s)${missing} missing"; continue; fi
         "${K[@]}" apply -f "${f}" >/dev/null && did "applied ${f#"${REPO_ROOT}/"}"
+        # with policies in force, the did:web ingress must still reach the signer
+        jq -n --arg tns "${TENANT_NS}" '{apiVersion: "networking.k8s.io/v1", kind: "NetworkPolicy",
+          metadata: {name: "allow-signer-from-ingress-nginx", namespace: $tns},
+          spec: {podSelector: {matchLabels: {"app.kubernetes.io/name": "signer"}}, policyTypes: ["Ingress"],
+                 ingress: [{from: [{namespaceSelector: {matchLabels: {"kubernetes.io/metadata.name": "ingress-nginx"}}}],
+                            ports: [{port: 8080, protocol: "TCP"}]}]}}' | "${K[@]}" apply -f - >/dev/null \
+            && did "the did:web ingress may reach the signer"
     done
     [ "${found}" = 1 ] || echo "  no identity network policies in this checkout: the W-Stack namespaces stay open"
 }
@@ -315,12 +322,12 @@ did_web() {
                                 "nginx.ingress.kubernetes.io/rewrite-target": "/v1/did/document"}},
        spec: {ingressClassName: "nginx", tls: [{hosts: [$host], secretName: "tenant-tls"}],
               rules: [{host: $host, http: {paths: [{path: "/.well-known/did.json", pathType: "Exact",
-                       backend: {service: {name: "did-web-signer", port: {number: 8080}}}}]}}]}},
-      {apiVersion: "networking.k8s.io/v1", kind: "NetworkPolicy",
-       metadata: {name: "allow-signer-from-ingress-nginx", namespace: $tns},
-       spec: {podSelector: {matchLabels: {"app.kubernetes.io/name": "signer"}}, policyTypes: ["Ingress"],
-              ingress: [{from: [{namespaceSelector: {matchLabels: {"kubernetes.io/metadata.name": "ingress-nginx"}}}],
-                         ports: [{port: 8080, protocol: "TCP"}]}]}}]}' | "${K[@]}" apply -f - >/dev/null
+                       backend: {service: {name: "did-web-signer", port: {number: 8080}}}}]}}]}}]}' | "${K[@]}" apply -f - >/dev/null
+    # A policy selecting the signer alone would cut it off from the tenant gateway
+    # and the W-Stack services (its JWKS, used by the issuance service, timed out):
+    # the ingress allowance is applied with the repository's policies only (see
+    # apply_network_policies). Remove one left by an earlier version of this script.
+    "${K[@]}" -n "${TENANT_NS}" delete networkpolicy allow-signer-from-ingress-nginx --ignore-not-found >/dev/null
     # the signer reads the tenant from request headers
     "${K[@]}" -n ingress-nginx create configmap tenant-headers \
         --from-literal=X-HOST="https://${TENANT_HOST}" --from-literal=X-DID="${TENANT_DID}" \
