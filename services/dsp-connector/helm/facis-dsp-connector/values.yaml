@@ -27,6 +27,10 @@ dedicatedOrce:
   # -- ConfigMap holding rdkafka-patch.js (SSL support overlay for
   #    node-red-contrib-rdkafka; same ConfigMap the shared instance uses).
   rdkafkaPatchConfigMap: facis-orce-rdkafka-patch
+  # -- Extra environment variables for the ORCE container, in the Kubernetes
+  #    `env` format (name/value or name/valueFrom), for settings the flows read
+  #    with env.get() that have no value of their own in this chart.
+  extraEnv: []
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: "1", memory: 1Gi }
