@@ -269,6 +269,23 @@ dspStatePvc:
 networkPolicies:
   enabled: true
 
+# ---------------------------------------------------------------------------
+# External secrets
+# ---------------------------------------------------------------------------
+# -- ExternalSecrets (External Secrets Operator) for the Secrets this chart
+#    does not render. Off by default.
+externalSecrets:
+  enabled: false
+  # -- The SecretStore or ClusterSecretStore to read from.
+  secretStoreRef:
+    kind: SecretStore
+    name: ""
+  refreshInterval: 1h
+  # -- Store key holding every key of <fullname>-dsp-secrets (the keys
+  #    templates/orce-secret.yaml renders). Needs dsp.renderSecret=false.
+  dspSecrets:
+    remoteKey: ""
+
 nameOverride: ""
 fullnameOverride: ""
 
