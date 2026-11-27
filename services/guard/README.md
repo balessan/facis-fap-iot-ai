@@ -97,6 +97,9 @@ They run the real function-node code of the flow JSON (with the DSP connector's
 
 **Policy tests:** `opa test infrastructure/opa/bundle` and `infrastructure/opa/check-fixtures.sh`.
 
+**Local setup, step by step** (prerequisites, the browser login with the AI Insight UI, the real
+W-Stack, restarting after a reboot): [`local/README.md`](local/README.md).
+
 **End to end on a local cluster** (kind, k3d, minikube; needs kubectl, helm, opa, openssl, curl,
 jq). The local setup installs the chart in namespace `guard-local` with a stub verifier, which
 plays the wallet's side and the issuer's status list, and an edge proxy on
