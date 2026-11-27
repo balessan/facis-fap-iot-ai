@@ -70,5 +70,5 @@ pkill -f "port-forward -n ${ns} svc/guard-edge" 2>/dev/null || true
 nohup kubectl --context "${ctx}" port-forward -n "${ns}" svc/guard-edge 8444:8080 > "${TMPDIR:-/tmp}/guard-edge-port-forward.log" 2>&1 &
 for _ in $(seq 1 20); do curl -sf -o /dev/null http://localhost:8444/.well-known/openid-configuration && break; sleep 1; done
 curl -sf http://localhost:8444/.well-known/openid-configuration | grep -q '"issuer":"http://localhost:8444/"' \
-    && echo "   guard up: http://localhost:8444 (run services/guard/local/e2e.sh)" \
+    && echo "   guard up: http://localhost:8444 (run ${here}/e2e.sh)" \
     || { echo "   the guard does not answer on http://localhost:8444" >&2; exit 1; }

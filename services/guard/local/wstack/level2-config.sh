@@ -56,4 +56,4 @@ kubectl --context "${ctx}" get ns "${ns}" >/dev/null 2>&1 || kubectl --context "
 kubectl --context "${ctx}" -n "${ns}" create configmap guard-wstack-ca --from-file=ca.crt="${ca}" --dry-run=client -o yaml \
   | kubectl --context "${ctx}" -n "${ns}" apply -f - >/dev/null
 echo "level 2 settings in ${out}: values.yaml, policy-data/ (issuer ${issuer}); CA ConfigMap guard-wstack-ca in ${ns}"
-echo "next: EXTRA_VALUES=${out}/values.yaml POLICY_DATA=${out}/policy-data services/guard/local/up.sh"
+echo "next: EXTRA_VALUES=${out}/values.yaml POLICY_DATA=${out}/policy-data $(cd "$(dirname "$0")/.." && pwd)/up.sh"
