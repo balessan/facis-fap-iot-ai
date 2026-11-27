@@ -1,0 +1,36 @@
+name: Policy bundle
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "infrastructure/opa/**"
+      - ".github/workflows/policy-bundle.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infrastructure/opa/**"
+      - ".github/workflows/policy-bundle.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  opa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.22.0
+
+      - name: Check formatting
+        run: test -z "$(opa fmt -l infrastructure/opa/bundle)"
+
+      - name: Unit tests
+        run: opa test infrastructure/opa/bundle -v
+
+      - name: Replay the decision fixtures
+        run: infrastructure/opa/check-fixtures.sh

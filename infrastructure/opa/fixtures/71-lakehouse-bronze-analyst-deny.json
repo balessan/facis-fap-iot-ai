@@ -1,0 +1,15 @@
+{
+  "name": "71-lakehouse-bronze-analyst-deny",
+  "query": "facis/lakehouse/read",
+  "input": {
+    "roles": [
+      "data_analyst"
+    ],
+    "layer": "bronze",
+    "table": "events",
+    "columns": [
+      "ts"
+    ]
+  },
+  "expect": "deny"
+}

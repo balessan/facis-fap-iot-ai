@@ -1,0 +1,14 @@
+{
+  "name": "20-catalogue-allow",
+  "query": "facis/catalogue/allow",
+  "input": {
+    "roles": [
+      "data_analyst"
+    ],
+    "layer": "gold",
+    "purpose": [
+      "analytics"
+    ]
+  },
+  "expect": "allow"
+}

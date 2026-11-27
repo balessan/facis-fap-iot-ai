@@ -1,0 +1,14 @@
+{
+  "name": "32-negotiation-unmet-constraint",
+  "query": "facis/negotiation/allow",
+  "input": {
+    "org_did": "did:web:org-x.facis.cloud",
+    "roles": [
+      "data_consumer"
+    ],
+    "offer_purpose": "world_domination",
+    "offer_id": "offer-allowed-1",
+    "dataset": "dataset-1"
+  },
+  "expect": "deny"
+}

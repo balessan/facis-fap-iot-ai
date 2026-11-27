@@ -1,0 +1,16 @@
+{
+  "name": "75-lakehouse-silver-consumer-load-admin",
+  "query": "facis/lakehouse/read",
+  "input": {
+    "roles": [
+      "administrator"
+    ],
+    "layer": "silver",
+    "table": "consumer_load",
+    "columns": [
+      "load_kw",
+      "consumer_id"
+    ]
+  },
+  "expect": "allow"
+}

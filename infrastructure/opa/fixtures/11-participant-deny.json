@@ -1,0 +1,12 @@
+{
+  "name": "11-participant-deny",
+  "query": "facis/participant/allow",
+  "input": {
+    "action": "issue",
+    "caller_roles": [
+      "data_analyst"
+    ],
+    "org_did": "did:web:org-x.facis.cloud"
+  },
+  "expect": "deny"
+}

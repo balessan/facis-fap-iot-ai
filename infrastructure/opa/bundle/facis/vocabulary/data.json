@@ -1,0 +1,119 @@
+{
+  "comment": "Shared vocabulary of the FACIS policy bundle: roles, purposes and per-layer permissions. The rego reads it and never redefines it. Role and purpose values follow schemas/credentials/facis-common.schema.json. Loaded as data.facis.vocabulary.",
+  "did_pattern": "^did:(web|key):[A-Za-z0-9._%:-]+$",
+  "roles": [
+    "administrator",
+    "data_engineer",
+    "data_scientist",
+    "data_analyst",
+    "operator"
+  ],
+  "participant_roles": [
+    "data_provider",
+    "data_consumer"
+  ],
+  "comment_participant_roles": "The DSP participant roles carried by the FacisParticipantCredential (participantRoles, see schemas/credentials/). They are DISTINCT from the user roles in .roles: a user role must never pass negotiation.permit, and a participant role must never pass the user-facing packages (lakehouse and ai_insight use .roles via facis.common.effective_roles).",
+  "purposes": [
+    "operations",
+    "analytics",
+    "research",
+    "ai_insight",
+    "maintenance"
+  ],
+  "catalogue": {
+    "layers": {
+      "bronze": {
+        "allowed_roles": [
+          "administrator",
+          "data_engineer"
+        ]
+      },
+      "silver": {
+        "allowed_roles": [
+          "administrator",
+          "data_engineer",
+          "data_scientist"
+        ]
+      },
+      "gold": {
+        "allowed_roles": [
+          "administrator",
+          "data_engineer",
+          "data_scientist",
+          "data_analyst",
+          "operator"
+        ],
+        "operator_tables": [
+          "streetlight_zone_hourly",
+          "net_grid_hourly",
+          "anomaly_candidates"
+        ]
+      }
+    },
+    "allowed_offers": [
+      "offer-allowed-1"
+    ],
+    "allowed_datasets": [
+      "dataset-1"
+    ],
+    "comment_offers": "placeholder ids: set them to the offer and dataset ids of the deployment's published DSP catalogue"
+  },
+  "lakehouse": {
+    "restricted_tables": {
+      "bronze.consumer": {
+        "restricted_to": [
+          "administrator",
+          "data_engineer"
+        ]
+      },
+      "silver.consumer_load": {
+        "restricted_to": [
+          "administrator",
+          "data_engineer"
+        ]
+      }
+    },
+    "comment_columns": "consumer-level identifiers hidden from everyone but administrator/data_engineer (check the table names against the deployed lakehouse tables)"
+  },
+  "participant": {
+    "admin_actions": [
+      "issue",
+      "revoke"
+    ]
+  },
+  "transfer": {
+    "formats": [
+      "http-pull",
+      "dsp-push"
+    ],
+    "final_agreement_states": [
+      "FINALIZED"
+    ]
+  },
+  "negotiation": {
+    "allowed_constraint_types": [
+      "organisation",
+      "role",
+      "purpose"
+    ]
+  },
+  "ai_insight": {
+    "allowed_roles": [
+      "administrator",
+      "data_scientist",
+      "data_analyst"
+    ],
+    "required_purpose": "ai_insight"
+  },
+  "simulation": {
+    "allowed_roles": [
+      "administrator",
+      "operator"
+    ]
+  },
+  "admin": {
+    "allowed_roles": [
+      "administrator"
+    ]
+  }
+}

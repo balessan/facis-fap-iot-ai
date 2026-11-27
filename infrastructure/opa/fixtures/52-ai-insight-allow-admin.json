@@ -1,0 +1,14 @@
+{
+  "name": "52-ai-insight-allow-admin",
+  "query": "facis/ai_insight/allow",
+  "input": {
+    "roles": [
+      "administrator"
+    ],
+    "purpose": [
+      "ai_insight",
+      "operations"
+    ]
+  },
+  "expect": "allow"
+}

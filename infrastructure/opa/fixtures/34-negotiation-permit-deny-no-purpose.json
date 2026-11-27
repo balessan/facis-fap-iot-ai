@@ -1,0 +1,22 @@
+{
+  "name": "34-negotiation-permit-deny-no-purpose",
+  "query": "facis/negotiation/permit",
+  "input": {
+    "subject": {
+      "did": "did:web:org-x.facis.cloud",
+      "roles": [
+        "data_consumer"
+      ]
+    },
+    "action": "negotiation.permit",
+    "resource": {
+      "negotiationId": "neg-2",
+      "offerId": "offer-allowed-1",
+      "dataset": "dataset-1"
+    },
+    "context": {
+      "constraints": []
+    }
+  },
+  "expect": "deny"
+}

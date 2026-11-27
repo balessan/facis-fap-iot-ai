@@ -1,0 +1,15 @@
+{
+  "name": "72-lakehouse-gold-operator-table",
+  "query": "facis/lakehouse/read",
+  "input": {
+    "roles": [
+      "operator"
+    ],
+    "layer": "gold",
+    "table": "streetlight_zone_hourly",
+    "columns": [
+      "zone_id"
+    ]
+  },
+  "expect": "allow"
+}

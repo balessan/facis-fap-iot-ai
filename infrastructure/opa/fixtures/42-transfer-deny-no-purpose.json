@@ -1,0 +1,12 @@
+{
+  "name": "42-transfer-deny-no-purpose",
+  "query": "facis/transfer/allow",
+  "input": {
+    "format": "http-pull",
+    "roles": [
+      "data_analyst"
+    ],
+    "agreement_state": "FINALIZED"
+  },
+  "expect": "deny"
+}

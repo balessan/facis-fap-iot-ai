@@ -1,0 +1,13 @@
+{
+  "name": "50-ai-insight-allow",
+  "query": "facis/ai_insight/allow",
+  "input": {
+    "roles": [
+      "data_scientist"
+    ],
+    "purpose": [
+      "ai_insight"
+    ]
+  },
+  "expect": "allow"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "21-catalogue-deny",
+  "query": "facis/catalogue/allow",
+  "input": {
+    "roles": [
+      "operator"
+    ],
+    "layer": "bronze",
+    "purpose": [
+      "operations"
+    ]
+  },
+  "expect": "deny"
+}
