@@ -1,0 +1,25 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F0 Deployment with the Builder nodes
+autonumber 1
+participant "FAP deployment flow\n(ORCE)" as DEP
+participant "ESB OCM-WStack\nBuilder node" as OCM
+participant "ESB PCM\nBuilder node" as PCM
+participant "Crypto provider\n(OpenBao)" as CRY
+participant "Connector tenant\n(W-Stack)" as TEN
+participant "Secret store\n(OpenBao, ESO)" as SEC
+participant "FAP Helm releases\n(guard included)" as FAP
+DEP->OCM:run (instance name, domain)
+OCM->CRY:create the issuer key
+OCM-->DEP:W-Stack URLs, client secret, status
+opt PCM Cloud available
+  DEP->PCM:run (OCM instance name)
+  PCM-->DEP:PCM URL, issuer id, status
+end
+DEP->TEN:install the connector tenant
+TEN->CRY:create the connector key
+TEN-->DEP:connector did:web published
+DEP->SEC:store the client secrets
+DEP->FAP:helm upgrade --install (URLs from the node outputs)
+FAP->FAP:guard registers the web applications as OAuth2 clients
+note over DEP,FAP:A second run needs no manual input and creates no duplicates

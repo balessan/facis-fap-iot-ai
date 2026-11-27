@@ -1,0 +1,20 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F7 Data and AI access
+autonumber 1
+participant "User" as U
+participant "AI Insight UI" as UI
+participant "AI Insight service" as AIS
+participant "Guard\n(authorization server)" as G
+participant "Policy engine" as POL
+participant "Trino\n(data lake)" as TR
+U->UI:question or dashboard request
+UI->AIS:API call with the user's access token
+AIS->G:JWKS (cached): check signature and expiry
+AIS->POL:AI Insight and lakehouse policies (claims, table, columns)
+POL-->AIS:allow with the permitted columns, or deny
+AIS->TR:query on the permitted columns only
+TR-->AIS:rows
+AIS->AIS:purpose and prompt-volume rules
+AIS-->UI:answer, or 403 with a reason
+note over AIS,POL:Every decision is logged with a correlation id and the policy version

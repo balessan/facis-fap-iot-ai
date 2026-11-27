@@ -1,0 +1,32 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F3 Wallet login through the guard
+autonumber 1
+participant "User (browser)" as U
+participant "Web application" as APP
+participant "Guard: authorization server" as AZ
+participant "Guard: login provider" as LP
+participant "W-Stack verifier" as CVS
+participant "Policy engine" as POL
+participant "Wallet" as W
+U->APP:open the application
+APP->AZ:authorization request (code + PKCE)
+AZ->LP:redirect with login_challenge
+LP->LP:login attempt (state, nonce, 5 min, single use)
+LP->CVS:create a presentation request (role credential, state)
+CVS-->LP:request link (openid4vp scheme)
+alt mobile wallet
+  LP-->U:login page with the QR code (or a deep link on the same device)
+  U->W:scan the QR code or open the link
+else web wallet (PCM Cloud or another)
+  LP-->U:redirect to the selected web wallet, carrying the request
+  U->W:review and approve the request in the web wallet
+end
+W->CVS:presentation (direct_post, DCQL)
+LP->CVS:read the result for the state
+CVS-->LP:verified claims, holder binding, status
+LP->POL:login policy
+POL-->LP:allow or deny
+LP->AZ:accept login and consent (subject, claims)
+AZ-->APP:authorization code, then tokens
+APP->APP:call its APIs with the access token

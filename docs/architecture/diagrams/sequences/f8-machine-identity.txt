@@ -1,0 +1,25 @@
+// Source for sequencediagram.org: paste this text into the editor.
+// The Mermaid copy in ../../icam-flows.md must be kept in step.
+title F8 Machine identity (design option)
+autonumber 1
+participant "FAP admin flow" as AF
+participant "W-Stack issuer" as ISS
+participant "Organisation tenant\n(storage)" as STO
+participant "Service\n(NiFi, Spark, AI processing)" as SVC
+participant "Crypto provider" as CRY
+participant "Guard\n(authorization server)" as G
+participant "Trino or\nanother data API" as API
+alt presentation exchanged for a token
+  AF->ISS:offer a service credential (service DID)
+  ISS-->STO:service credential stored
+  SVC->STO:load its credential
+  SVC->CRY:sign a presentation (audience = guard token endpoint)
+  CRY-->SVC:signed VP
+  SVC->G:token request with the VP (JWT bearer grant)
+  G->G:verify the VP, status, issuer and policy
+else client credentials with DPoP
+  SVC->G:client credentials grant with a DPoP proof
+end
+G-->SVC:short-lived access token (sub = service DID or client id)
+SVC->API:call with that token, no static secret
+note over AF,API:Design option: how machine clients obtain tokens is still open
